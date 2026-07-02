@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #f5f0e8;
+  color: #1a0a2e;
+}
+
+.font-display { font-family: 'Playfair Display', Georgia, serif; }
+.font-body { font-family: 'Inter', system-ui, sans-serif; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f5f0e8; }
+::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #7c3aed; }
+
+/* Product card hover */
+.product-img-wrap { overflow: hidden; }
+.product-img-wrap img {
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.product-card:hover .product-img-wrap img { transform: scale(1.08); }
+.product-card {
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+.product-card:hover {
+  box-shadow: 0 12px 40px rgba(59,7,100,0.18);
+  transform: translateY(-2px);
+}
