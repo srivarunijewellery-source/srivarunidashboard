@@ -1,17 +1,11 @@
-interface PageHeaderProps {
-  title: string
-  subtitle?: string
-  actions?: React.ReactNode
-}
-
-export default function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
+export default function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between px-8 pt-8 pb-6">
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '32px 32px 24px' }}>
       <div>
-        <h1 className="font-display text-2xl text-sv-purple">{title}</h1>
-        {subtitle && <p className="text-sv-muted text-sm mt-1">{subtitle}</p>}
+        <h1 className="font-display" style={{ fontSize: 24, color: '#3b0764', margin: 0 }}>{title}</h1>
+        {subtitle && <p style={{ color: '#6b5b7b', fontSize: 13, marginTop: 4 }}>{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-3">{actions}</div>}
+      {actions && <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>{actions}</div>}
     </div>
   )
 }

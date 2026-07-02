@@ -1,47 +1,47 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { fmt_inr, fmt_pct, cn } from '@/lib/utils'
+import { fmt_inr, getAllMonths, DATA_START } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { format } from 'date-fns'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-interface MonthData { label: string; total: number }
-interface CategoryRow { vendor: string; months: Record<string, number>; total: number }
+const S = {
+  section: { background: '#fff', borderRadius: 16, border: '1px solid #e8d5b7', boxShadow: '0 2px 8px rgba(59,7,100,0.07)', overflow: 'hidden' },
+  th: { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#6b5b7b', textTransform: 'uppercase' as const, letterSpacing: 0.5, background: '#f5f0e8', borderBottom: '1px solid #e8d5b7', whiteSpace: 'nowrap' as const },
+  td: { padding: '10px 12px', fontSize: 12, color: '#1a0a2e', borderBottom: '1px solid #f0e8d8' },
+}
 
-const N_MONTHS = 6
-
-function getMonths() {
-  const now = new Date()
-  return Array.from({ length: N_MONTHS }, (_, i) => {
-    const d = subMonths(now, N_MONTHS - 1 - i)
-    return { from: format(startOfMonth(d), 'yyyy-MM-dd'), to: format(endOfMonth(d), 'yyyy-MM-dd'), label: format(d, 'MMM yy') }
-  })
+const Tip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e8d5b7', borderRadius: 12, padding: '10px 14px', boxShadow: '0 4px 16px rgba(59,7,100,0.12)', fontSize: 12 }}>
+      <p style={{ fontWeight: 700, color: '#3b0764', marginBottom: 4 }}>{label}</p>
+      <p style={{ color: '#1a0a2e', fontWeight: 600 }}>{fmt_inr(payload[0]?.value)}</p>
+    </div>
+  )
 }
 
 export default function ExpensesPage() {
-  const [rows, setRows] = useState<CategoryRow[]>([])
+  const [rows, setRows] = useState<any[]>([])
   const [months, setMonths] = useState<string[]>([])
-  const [chartData, setChartData] = useState<MonthData[]>([])
-  const [metrics, setMetrics] = useState({ total: 0, avg: 0, highest: '', peak: 0 })
+  const [chartData, setChartData] = useState<any[]>([])
+  const [metrics, setMetrics] = useState({ total: 0, avg: 0, highest: '', peak: 0, categories: 0 })
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const periods = getMonths()
+      const periods = getAllMonths()
       const lbls = periods.map(p => p.label)
       setMonths(lbls)
 
-      const { data } = await supabase.from('expenses')
-        .select('date,vendor_name,gross_total')
-        .gte('date', periods[0].from)
-        .lte('date', periods[periods.length - 1].to)
-
+      const { data } = await supabase.from('expenses').select('date,vendor_name,gross_total')
+        .gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0])
       if (!data) return
 
-      const catMap: Record<string, CategoryRow> = {}
+      const catMap: Record<string, any> = {}
       const monthTotals: Record<string, number> = {}
       lbls.forEach(l => { monthTotals[l] = 0 })
 
@@ -49,58 +49,48 @@ export default function ExpensesPage() {
         const vendor = row.vendor_name || 'Other'
         const lbl = format(new Date(row.date), 'MMM yy')
         const amt = row.gross_total || 0
-
         if (!catMap[vendor]) catMap[vendor] = { vendor, months: {}, total: 0 }
         catMap[vendor].months[lbl] = (catMap[vendor].months[lbl] || 0) + amt
         catMap[vendor].total += amt
         if (monthTotals[lbl] !== undefined) monthTotals[lbl] += amt
       }
 
-      const sorted = Object.values(catMap).sort((a, b) => b.total - a.total).slice(0, 15)
+      const sorted = Object.values(catMap).sort((a,b)=>b.total-a.total).slice(0,15)
       setRows(sorted)
 
-      const chartPts = lbls.map(l => ({ label: l, total: monthTotals[l] || 0 }))
+      const chartPts = lbls.map(l => ({ label: l, total: monthTotals[l]||0 })).filter(p=>p.total>0)
       setChartData(chartPts)
 
-      const totalExp = Object.values(monthTotals).reduce((s, v) => s + v, 0)
-      const peakMonth = chartPts.reduce((a, b) => b.total > a.total ? b : a, chartPts[0])
-      setMetrics({ total: totalExp, avg: totalExp / N_MONTHS, highest: peakMonth?.label || '', peak: peakMonth?.total || 0 })
+      const totalExp = Object.values(monthTotals).reduce((s,v)=>s+v,0)
+      const activeMonths = Object.values(monthTotals).filter(v=>v>0).length
+      const peakMonth = chartPts.reduce((a,b)=>b.total>a.total?b:a, chartPts[0]||{label:'',total:0})
+      setMetrics({ total: totalExp, avg: activeMonths>0?totalExp/activeMonths:0, highest: peakMonth.label, peak: peakMonth.total, categories: sorted.length })
     } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const Tip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null
-    return (
-      <div className="bg-white border border-sv-beige-dark rounded-xl shadow-gem px-4 py-3 text-xs">
-        <p className="font-semibold text-sv-purple mb-1">{label}</p>
-        <p className="text-sv-ink font-medium">{fmt_inr(payload[0]?.value)}</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-full">
-      <PageHeader title="Expenses" subtitle="Category breakdown and monthly trends" />
-      <div className="px-8 pb-8 space-y-6">
+    <div style={{ minHeight: '100%', background: '#f5f0e8' }}>
+      <PageHeader title="Expenses" subtitle="All time category breakdown and monthly trends" />
+      <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        <div className="grid grid-cols-4 gap-4">
-          <MetricCard label="6-Month Total" value={fmt_inr(metrics.total)} sub="All expenses" accent="purple" />
-          <MetricCard label="Monthly Avg" value={fmt_inr(metrics.avg)} sub="Per month" accent="beige" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+          <MetricCard label="All-time Expenses" value={fmt_inr(metrics.total)} accent="purple" />
+          <MetricCard label="Monthly Avg" value={fmt_inr(metrics.avg)} sub="Active months" accent="beige" />
           <MetricCard label="Peak Month" value={metrics.highest} sub={fmt_inr(metrics.peak)} accent="amber" />
-          <MetricCard label="Categories" value={`${rows.length}`} sub="Active vendors" accent="beige" />
+          <MetricCard label="Vendors" value={`${metrics.categories}`} sub="Categories" accent="beige" />
         </div>
 
-        {/* Monthly total chart */}
-        <div className="bg-white rounded-2xl border border-sv-beige-dark shadow-card p-6">
-          <h2 className="font-display text-sv-purple text-lg mb-5">Monthly Expense Trend</h2>
-          {loading ? <div className="h-56 bg-sv-beige rounded-xl animate-pulse" /> : (
+        {/* Chart */}
+        <div style={{ ...S.section, padding: 24 }}>
+          <h2 className="font-display" style={{ color: '#3b0764', fontSize: 18, margin: '0 0 20px' }}>Monthly Expense Trend</h2>
+          {loading ? <div style={{ height: 220, background: '#f5f0e8', borderRadius: 12 }} /> : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chartData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e8d5b7" />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6b5b7b' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#6b5b7b' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
+                <YAxis tick={{ fontSize: 11, fill: '#6b5b7b' }} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}k`} />
                 <Tooltip content={<Tip />} />
                 <Bar dataKey="total" name="Expenses" fill="#7c3aed" radius={[4,4,0,0]} />
               </BarChart>
@@ -108,63 +98,56 @@ export default function ExpensesPage() {
           )}
         </div>
 
-        {/* Category × Month table */}
-        <div className="bg-white rounded-2xl border border-sv-beige-dark shadow-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-sv-beige-dark">
-            <h2 className="font-display text-sv-purple text-lg">Expense Categories — Month on Month</h2>
-            <p className="text-xs text-sv-muted mt-0.5">Top 15 vendors · last 6 months</p>
+        {/* MoM table */}
+        <div style={S.section}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8d5b7' }}>
+            <h2 className="font-display" style={{ color: '#3b0764', fontSize: 18, margin: 0 }}>Expense Categories — Month on Month</h2>
+            <p style={{ fontSize: 12, color: '#6b5b7b', marginTop: 4 }}>Top 15 vendors · all months · ▲ red = increase, ▼ green = decrease</p>
           </div>
-          {loading ? <div className="h-48 animate-pulse bg-sv-beige m-4 rounded-xl" /> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+          {loading ? <div style={{ height: 200, background: '#f5f0e8', margin: 16, borderRadius: 12 }} /> : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr className="bg-sv-purple text-white">
-                    <th className="text-left px-5 py-3 font-semibold sticky left-0 bg-sv-purple min-w-[180px]">Vendor / Category</th>
-                    {months.map(m => <th key={m} className="px-4 py-3 text-right font-semibold whitespace-nowrap border-l border-purple-700">{m}</th>)}
-                    <th className="px-4 py-3 text-right font-semibold border-l border-purple-700 bg-purple-800">Total</th>
-                    <th className="px-4 py-3 text-right font-semibold bg-purple-800">MoM%</th>
+                  <tr style={{ background: '#3b0764' }}>
+                    <th style={{ ...S.th, background: '#3b0764', color: '#fff', position: 'sticky', left: 0, minWidth: 180, textAlign: 'left' }}>Vendor / Category</th>
+                    {months.map(m => <th key={m} style={{ ...S.th, background: '#3b0764', color: '#fff', textAlign: 'right', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>{m}</th>)}
+                    <th style={{ ...S.th, background: '#4c1d95', color: '#fff', textAlign: 'right' }}>Total</th>
+                    <th style={{ ...S.th, background: '#4c1d95', color: '#fff', textAlign: 'right' }}>MoM</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, i) => {
-                    const monthVals = months.map(m => row.months[m] || 0)
-                    const lastTwo = monthVals.slice(-2)
-                    const mom = lastTwo[0] > 0 ? ((lastTwo[1] - lastTwo[0]) / lastTwo[0] * 100) : 0
-
+                    const vals = months.map(m => row.months[m]||0)
+                    const lastTwo = vals.slice(-2)
+                    const mom = lastTwo[0]>0 ? ((lastTwo[1]-lastTwo[0])/lastTwo[0]*100) : 0
                     return (
-                      <tr key={row.vendor} className={cn('border-t border-sv-beige-dark hover:bg-sv-beige-mid transition-colors', i%2===0?'':'bg-sv-beige/20')}>
-                        <td className="px-5 py-2.5 font-medium text-sv-ink sticky left-0 bg-inherit max-w-[180px] truncate">{row.vendor}</td>
+                      <tr key={row.vendor} style={{ background: i%2===0?'#fff':'#faf8ff' }}>
+                        <td style={{ ...S.td, fontWeight: 600, position: 'sticky', left: 0, background: i%2===0?'#fff':'#faf8ff', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.vendor}</td>
                         {months.map((m, mi) => {
-                          const cur = row.months[m] || 0
-                          const prv = mi > 0 ? (row.months[months[mi-1]] || 0) : 0
-                          const chg = prv > 0 ? (cur - prv) / prv * 100 : 0
+                          const cur = row.months[m]||0, prv = mi>0?(row.months[months[mi-1]]||0):0
+                          const chg = prv>0?(cur-prv)/prv*100:0
                           return (
-                            <td key={m} className="px-4 py-2.5 text-right">
-                              <div className="text-sv-ink font-medium">{cur > 0 ? fmt_inr(cur) : '—'}</div>
-                              {mi > 0 && cur > 0 && prv > 0 && (
-                                <div className={cn('text-[10px] font-medium', chg >= 0 ? 'text-red-500' : 'text-emerald-600')}>
-                                  {chg >= 0 ? '▲' : '▼'} {Math.abs(chg).toFixed(0)}%
-                                </div>
-                              )}
+                            <td key={m} style={{ ...S.td, textAlign: 'right' }}>
+                              <div style={{ fontWeight: 500 }}>{cur>0?fmt_inr(cur):'—'}</div>
+                              {mi>0&&cur>0&&prv>0&&<div style={{ fontSize: 10, fontWeight: 700, color: chg>=0?'#dc2626':'#059669' }}>{chg>=0?'▲':'▼'} {Math.abs(chg).toFixed(0)}%</div>}
                             </td>
                           )
                         })}
-                        <td className="px-4 py-2.5 text-right font-bold text-sv-ink">{fmt_inr(row.total)}</td>
-                        <td className={cn('px-4 py-2.5 text-right font-bold', mom >= 0 ? 'text-red-500' : 'text-emerald-600')}>
-                          {mom !== 0 ? `${mom >= 0 ? '▲' : '▼'} ${Math.abs(mom).toFixed(1)}%` : '—'}
+                        <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmt_inr(row.total)}</td>
+                        <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: mom>=0?'#dc2626':'#059669' }}>
+                          {mom!==0?`${mom>=0?'▲':'▼'} ${Math.abs(mom).toFixed(1)}%`:'—'}
                         </td>
                       </tr>
                     )
                   })}
-                  {/* Totals */}
-                  <tr className="border-t-2 border-sv-purple bg-sv-purple-faint font-bold text-xs">
-                    <td className="px-5 py-2.5 text-sv-purple sticky left-0 bg-sv-purple-faint">TOTAL</td>
+                  <tr style={{ background: '#f5f0ff', borderTop: '2px solid #7c3aed' }}>
+                    <td style={{ ...S.td, fontWeight: 700, color: '#3b0764', position: 'sticky', left: 0, background: '#f5f0ff' }}>TOTAL</td>
                     {months.map(m => {
                       const tot = rows.reduce((s,r)=>s+(r.months[m]||0),0)
-                      return <td key={m} className="px-4 py-2.5 text-right text-sv-ink">{fmt_inr(tot)}</td>
+                      return <td key={m} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{tot>0?fmt_inr(tot):'—'}</td>
                     })}
-                    <td className="px-4 py-2.5 text-right text-sv-ink">{fmt_inr(rows.reduce((s,r)=>s+r.total,0))}</td>
-                    <td className="px-4 py-2.5 text-right" />
+                    <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmt_inr(rows.reduce((s,r)=>s+r.total,0))}</td>
+                    <td style={S.td} />
                   </tr>
                 </tbody>
               </table>

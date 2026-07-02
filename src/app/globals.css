@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* ── Sri Varuni Design Tokens ────────────────────────────────────────────── */
+@theme {
+  /* Purple palette */
+  --color-sv-purple:        #3b0764;
+  --color-sv-purple-mid:    #6d28d9;
+  --color-sv-purple-light:  #7c3aed;
+  --color-sv-purple-pale:   #ede9ff;
+  --color-sv-purple-faint:  #f5f2ff;
+
+  /* Beige palette */
+  --color-sv-beige:         #f5f0e8;
+  --color-sv-beige-dark:    #e8d5b7;
+  --color-sv-beige-mid:     #f0e8d8;
+
+  /* Text */
+  --color-sv-ink:           #1a0a2e;
+  --color-sv-muted:         #6b5b7b;
+
+  /* Shadows */
+  --shadow-card:            0 2px 8px rgba(59,7,100,0.08);
+  --shadow-card-hover:      0 8px 32px rgba(59,7,100,0.16);
+  --shadow-gem:             0 0 0 1px rgba(124,58,237,0.12), 0 4px 16px rgba(59,7,100,0.12);
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
 body {
@@ -8,25 +33,29 @@ body {
   color: #1a0a2e;
 }
 
-.font-display { font-family: 'Playfair Display', Georgia, serif; }
-.font-body { font-family: 'Inter', system-ui, sans-serif; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #f5f0e8; }
 ::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #7c3aed; }
 
-/* Product card hover */
+/* ── Product card hover zoom ─────────────────────────────────────────────── */
 .product-img-wrap { overflow: hidden; }
 .product-img-wrap img {
+  width: 100%; height: 100%; object-fit: cover;
   transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
-.product-card:hover .product-img-wrap img { transform: scale(1.08); }
-.product-card {
-  transition: box-shadow 0.3s ease, transform 0.2s ease;
-}
+.product-card { transition: box-shadow 0.3s ease, transform 0.2s ease; }
+.product-card:hover .product-img-wrap img { transform: scale(1.1); }
 .product-card:hover {
-  box-shadow: 0 12px 40px rgba(59,7,100,0.18);
-  transform: translateY(-2px);
+  box-shadow: 0 16px 48px rgba(59,7,100,0.2);
+  transform: translateY(-3px);
 }
+
+/* ── Typography helpers ──────────────────────────────────────────────────── */
+.font-display { font-family: 'Playfair Display', Georgia, serif; }
+
+/* ── Utility shadows ─────────────────────────────────────────────────────── */
+.shadow-card     { box-shadow: 0 2px 8px rgba(59,7,100,0.08); }
+.shadow-card-hover { box-shadow: 0 8px 32px rgba(59,7,100,0.16); }
+.shadow-gem      { box-shadow: 0 0 0 1px rgba(124,58,237,0.12), 0 4px 16px rgba(59,7,100,0.12); }

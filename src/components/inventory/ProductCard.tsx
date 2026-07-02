@@ -1,126 +1,106 @@
 'use client'
-import Image from 'next/image'
 import { useState } from 'react'
-import { cn, fmt_inr, fmt_pct, getAgeBadge } from '@/lib/utils'
 
 interface ProductCardProps {
-  item_code: string
-  product_name: string
-  category: string
-  brand: string
-  image_url?: string
-  mrp: number
-  selling_price: number
-  landing_cost: number
-  qty_sold: number
-  qty_remaining: number
-  revenue: number
-  profit: number
-  vendor?: string
-  age_days?: number
-  batch_no?: string
+  item_code: string; product_name: string; category: string; brand: string
+  image_url?: string; mrp: number; selling_price: number; landing_cost: number
+  qty_sold: number; qty_remaining: number; revenue: number; profit: number
+  vendor?: string; age_days?: number
 }
 
-export default function ProductCard({
-  item_code, product_name, category, brand, image_url,
-  mrp, selling_price, landing_cost, qty_sold, qty_remaining,
-  revenue, profit, vendor, age_days, batch_no
-}: ProductCardProps) {
-  const [imgErr, setImgErr] = useState(false)
-  const margin = selling_price > 0 ? ((selling_price - landing_cost) / selling_price * 100) : 0
-  const age = age_days !== undefined ? getAgeBadge(age_days) : null
+function fmt(v: number) { return v > 0 ? '₹' + Math.round(v).toLocaleString('en-IN') : '—' }
+function pct(v: number) { return v > 0 ? v.toFixed(1) + '%' : '—' }
+
+function ageBadge(days: number) {
+  if (days <= 30)  return { label: `${days}d`, bg: '#d1fae5', color: '#065f46' }
+  if (days <= 60)  return { label: `${days}d`, bg: '#fef3c7', color: '#92400e' }
+  if (days <= 90)  return { label: `${days}d`, bg: '#fed7aa', color: '#9a3412' }
+  return { label: `${days}d`, bg: '#fee2e2', color: '#991b1b' }
+}
+
+export default function ProductCard({ item_code, product_name, category, brand, image_url,
+  mrp, selling_price, landing_cost, qty_sold, qty_remaining, revenue, profit, vendor, age_days }: ProductCardProps) {
+  const [err, setErr] = useState(false)
+  const margin = selling_price > 0 ? (selling_price - landing_cost) / selling_price * 100 : 0
+  const age = age_days !== undefined ? ageBadge(age_days) : null
+  const marginColor = margin >= 40 ? '#059669' : margin >= 25 ? '#d97706' : '#dc2626'
+  const stockColor = qty_remaining <= 0 ? '#dc2626' : qty_remaining <= 3 ? '#d97706' : '#059669'
 
   return (
-    <div className="product-card bg-white rounded-2xl overflow-hidden shadow-card border border-sv-beige-dark flex flex-col">
-
+    <div className="product-card" style={{
+      background: '#fff', borderRadius: 16, overflow: 'hidden',
+      border: '1px solid #e8d5b7', display: 'flex', flexDirection: 'column',
+      boxShadow: '0 2px 8px rgba(59,7,100,0.07)'
+    }}>
       {/* Image */}
-      <div className="product-img-wrap relative bg-sv-beige-mid aspect-square">
-        {image_url && !imgErr ? (
-          <Image
-            src={image_url}
-            alt={product_name}
-            fill
-            className="object-cover"
-            onError={() => setImgErr(true)}
-            sizes="(max-width: 768px) 50vw, 25vw"
-          />
+      <div className="product-img-wrap" style={{ position: 'relative', aspectRatio: '1', background: '#f5f0e8' }}>
+        {image_url && !err ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={image_url} alt={product_name} onError={() => setErr(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-4xl">💍</span>
-          </div>
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>💍</div>
         )}
-
-        {/* Age badge */}
         {age && (
-          <span className={cn('absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full', age.color)}>
+          <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 10, fontWeight: 700,
+            padding: '2px 8px', borderRadius: 20, background: age.bg, color: age.color }}>
             {age.label}
           </span>
         )}
-
-        {/* Qty sold badge */}
-        <span className="absolute top-2 left-2 bg-sv-purple text-white text-xs font-bold px-2 py-0.5 rounded-full">
+        <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700,
+          padding: '2px 8px', borderRadius: 20, background: '#3b0764', color: '#fff' }}>
           ×{qty_sold} sold
         </span>
       </div>
 
-      {/* Details */}
-      <div className="p-3 flex flex-col gap-2 flex-1">
-        {/* Name + category */}
+      {/* Content */}
+      <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
         <div>
-          <p className="text-xs text-sv-muted font-medium uppercase tracking-wide">{category}</p>
-          <p className="text-sm font-semibold text-sv-ink leading-snug line-clamp-2">{product_name}</p>
-          <p className="text-xs text-sv-muted mt-0.5">{brand}</p>
+          <p style={{ fontSize: 10, color: '#6b5b7b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>{category}</p>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#1a0a2e', margin: '2px 0 0', lineHeight: 1.3,
+            overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{product_name}</p>
+          <p style={{ fontSize: 11, color: '#6b5b7b', margin: '2px 0 0' }}>{brand}</p>
         </div>
 
-        {/* Price row */}
-        <div className="grid grid-cols-3 gap-1 text-center">
-          <div className="bg-sv-beige rounded-lg py-1.5 px-1">
-            <p className="text-xs text-sv-muted leading-none mb-0.5">MRP</p>
-            <p className="text-xs font-semibold text-sv-ink">{fmt_inr(mrp)}</p>
-          </div>
-          <div className="bg-sv-beige rounded-lg py-1.5 px-1">
-            <p className="text-xs text-sv-muted leading-none mb-0.5">Sold</p>
-            <p className="text-xs font-semibold text-sv-purple-light">{fmt_inr(selling_price)}</p>
-          </div>
-          <div className="bg-sv-beige rounded-lg py-1.5 px-1">
-            <p className="text-xs text-sv-muted leading-none mb-0.5">Cost</p>
-            <p className="text-xs font-semibold text-sv-ink">{fmt_inr(landing_cost)}</p>
-          </div>
+        {/* Prices */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+          {[['MRP', fmt(mrp), '#1a0a2e'], ['Sold', fmt(selling_price), '#7c3aed'], ['Cost', fmt(landing_cost), '#6b5b7b']].map(([l, v, c]) => (
+            <div key={l} style={{ background: '#f5f0e8', borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
+              <p style={{ fontSize: 9, color: '#6b5b7b', margin: 0 }}>{l}</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: c as string, margin: '2px 0 0' }}>{v}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Margin + Revenue */}
-        <div className="flex items-center justify-between text-xs pt-1 border-t border-sv-beige-dark">
-          <span className="text-sv-muted">Margin</span>
-          <span className={cn('font-bold', margin >= 40 ? 'text-emerald-600' : margin >= 25 ? 'text-amber-600' : 'text-red-500')}>
-            {fmt_pct(margin)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-sv-muted">Revenue</span>
-          <span className="font-semibold text-sv-ink">{fmt_inr(revenue)}</span>
-        </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-sv-muted">Profit</span>
-          <span className="font-semibold text-emerald-600">{fmt_inr(profit)}</span>
+        {/* Stats */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 6, borderTop: '1px solid #e8d5b7' }}>
+          {[
+            ['Margin', pct(margin), marginColor],
+            ['Revenue', fmt(revenue), '#1a0a2e'],
+            ['Profit', fmt(profit), '#059669'],
+          ].map(([l, v, c]) => (
+            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+              <span style={{ color: '#6b5b7b' }}>{l}</span>
+              <span style={{ fontWeight: 700, color: c as string }}>{v}</span>
+            </div>
+          ))}
         </div>
 
         {/* Meta */}
-        <div className="pt-1 border-t border-sv-beige-dark space-y-0.5">
+        <div style={{ paddingTop: 6, borderTop: '1px solid #e8d5b7', display: 'flex', flexDirection: 'column', gap: 3 }}>
           {vendor && (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-sv-muted">Vendor</span>
-              <span className="font-medium text-sv-ink truncate max-w-[120px]">{vendor}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+              <span style={{ color: '#6b5b7b' }}>Vendor</span>
+              <span style={{ color: '#1a0a2e', fontWeight: 500, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{vendor}</span>
             </div>
           )}
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-sv-muted">Stock</span>
-            <span className={cn('font-medium', qty_remaining <= 0 ? 'text-red-500' : qty_remaining <= 3 ? 'text-amber-600' : 'text-emerald-600')}>
-              {qty_remaining} left
-            </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+            <span style={{ color: '#6b5b7b' }}>Stock</span>
+            <span style={{ fontWeight: 700, color: stockColor }}>{qty_remaining} left</span>
           </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-sv-muted">Barcode</span>
-            <span className="font-mono text-sv-muted text-xs">{item_code}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+            <span style={{ color: '#6b5b7b' }}>Barcode</span>
+            <span style={{ fontFamily: 'monospace', color: '#6b5b7b' }}>{item_code}</span>
           </div>
         </div>
       </div>

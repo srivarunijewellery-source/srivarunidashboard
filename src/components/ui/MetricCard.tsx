@@ -1,5 +1,3 @@
-import { cn } from '@/lib/utils'
-
 interface MetricCardProps {
   label: string
   value: string
@@ -8,22 +6,23 @@ interface MetricCardProps {
   delta?: { value: string; positive: boolean }
 }
 
-const accents = {
-  purple: 'border-l-sv-purple-light bg-white',
-  green:  'border-l-emerald-500 bg-white',
-  amber:  'border-l-amber-500 bg-white',
-  red:    'border-l-red-500 bg-white',
-  beige:  'border-l-sv-beige-dark bg-white',
+const borderColors = {
+  purple: '#7c3aed', green: '#10b981', amber: '#f59e0b', red: '#ef4444', beige: '#e8d5b7'
 }
+const deltaColors = { true: '#059669', false: '#dc2626' }
 
 export default function MetricCard({ label, value, sub, accent = 'purple', delta }: MetricCardProps) {
   return (
-    <div className={cn('rounded-xl border-l-4 px-5 py-4 shadow-card', accents[accent])}>
-      <p className="text-xs font-medium text-sv-muted uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-semibold text-sv-ink mt-1 font-body">{value}</p>
-      {sub && <p className="text-xs text-sv-muted mt-0.5">{sub}</p>}
+    <div style={{
+      background: '#fff', borderRadius: 14, padding: '16px 20px',
+      borderLeft: `4px solid ${borderColors[accent]}`,
+      boxShadow: '0 2px 8px rgba(59,7,100,0.07)'
+    }}>
+      <p style={{ fontSize: 10, fontWeight: 600, color: '#6b5b7b', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>{label}</p>
+      <p style={{ fontSize: 22, fontWeight: 700, color: '#1a0a2e', margin: '4px 0 0' }}>{value}</p>
+      {sub && <p style={{ fontSize: 11, color: '#6b5b7b', marginTop: 2 }}>{sub}</p>}
       {delta && (
-        <p className={cn('text-xs font-medium mt-1', delta.positive ? 'text-emerald-600' : 'text-red-500')}>
+        <p style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: deltaColors[String(delta.positive) as keyof typeof deltaColors] }}>
           {delta.positive ? '▲' : '▼'} {delta.value}
         </p>
       )}
