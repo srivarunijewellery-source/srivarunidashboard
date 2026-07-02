@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { fmt_inr, fmt_num, DATA_START } from '@/lib/utils'
+import Link from 'next/link'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
@@ -206,7 +207,8 @@ export default function OverviewPage() {
                 {topCustomers.map((c,i)=>(
                   <tr key={c.mobile_no} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                     <td style={{ ...S.td, fontWeight:600 }}>
-                      <div>{c.customer_name}</div>
+                      <Link href={`/customers?name=${encodeURIComponent(c.customer_name||'')}&mobile=${encodeURIComponent(c.mobile_no||'')}`}
+                        style={{ color:'#3b0764', textDecoration:'underline', textDecorationColor:'#c4b5fd', textUnderlineOffset:2 }}>{c.customer_name}</Link>
                       <div style={{ fontSize:10, color:'#6b5b7b', fontFamily:'monospace' }}>{c.mobile_no}</div>
                     </td>
                     <td style={{ ...S.td, textAlign:'center' }}>

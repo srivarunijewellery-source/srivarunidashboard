@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { fmt_inr, fmt_num, getAllMonths, DATA_START } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
@@ -34,7 +34,9 @@ export default function TeamPage() {
 
   // Filters
   const [filterMode, setFilterMode] = useState<'all'|'half'|'custom'>('all')
-  const halfOptions = getHalfOptions()
+  // Computed once — a fresh array on every render was cascading through
+  // getRange -> load -> useEffect and causing an infinite render/flicker loop.
+  const halfOptions = useMemo(() => getHalfOptions(), [])
   const [selHalf, setSelHalf] = useState(halfOptions[0]?.label||'')
   const [customFrom, setCustomFrom] = useState(DATA_START)
   const [customTo, setCustomTo] = useState(format(new Date(),'yyyy-MM-dd'))

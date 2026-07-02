@@ -52,7 +52,7 @@ export default function SalesPage() {
         : getPeriods(grain, N[grain])
 
       const { data } = await supabase.from('sales').select('date,net_amount,profit,qty')
-        .gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0])
+        .gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0]).limit(10000)
       if (!data) return
 
       const buckets: Record<string, any> = {}
@@ -83,7 +83,7 @@ export default function SalesPage() {
     try {
       const periods = getAllMonths()
       const { data } = await supabase.from('sales').select('date,sales_man,net_amount,qty')
-        .gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0])
+        .gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0]).limit(10000)
       if (!data) return
 
       const lbls = periods.map(p => p.label)
