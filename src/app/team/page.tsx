@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllRows } from '@/lib/supabase'
 import { fmt_inr, fmt_num, getAllMonths, DATA_START } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
@@ -54,9 +54,8 @@ export default function TeamPage() {
     setLoading(true)
     try {
       const {from,to} = getRange()
-      const { data } = await supabase.from('sales').select('date,sales_man,net_amount,qty')
-        .gte('date',from).lte('date',to).limit(10000)
-      if (!data) return
+      const data = await fetchAllRows('sales', 'date,sales_man,net_amount,qty', q =>
+        q.gte('date',from).lte('date',to))
 
       // Build month columns from the filtered range
       const seenMonths = new Set<string>()

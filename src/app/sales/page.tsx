@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllRows } from '@/lib/supabase'
 import { fmt_inr, fmt_num, fmt_pct, getPeriods, getAllMonths, DATA_START, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import GrainSelector from '@/components/ui/GrainSelector'
@@ -51,9 +51,8 @@ export default function SalesPage() {
         ? getAllMonths()
         : getPeriods(grain, N[grain])
 
-      const { data } = await supabase.from('sales').select('date,net_amount,profit,qty')
-        .gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0]).limit(10000)
-      if (!data) return
+      const data = await fetchAllRows('sales', 'date,net_amount,profit,qty', q =>
+        q.gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0]))
 
       const buckets: Record<string, any> = {}
       periods.forEach(p => { buckets[p.label] = { label: p.label, revenue: 0, profit: 0, qty: 0 } })
@@ -82,9 +81,8 @@ export default function SalesPage() {
     setCommLoading(true)
     try {
       const periods = getAllMonths()
-      const { data } = await supabase.from('sales').select('date,sales_man,net_amount,qty')
-        .gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0]).limit(10000)
-      if (!data) return
+      const data = await fetchAllRows('sales', 'date,sales_man,net_amount,qty', q =>
+        q.gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0]))
 
       const lbls = periods.map(p => p.label)
       setCommMonths(lbls)

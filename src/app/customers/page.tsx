@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllRows } from '@/lib/supabase'
 import { fmt_inr, fmt_num, fmt_pct, DATA_START } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
@@ -61,9 +61,9 @@ function CustomersInner() {
     const load = async () => {
       setInsightsLoading(true)
       try {
-        const { data: cust } = await supabase.from('customer_summary')
-          .select('*').order('total_spend',{ascending:false}).limit(1000)
-        if (!cust) return
+        const cust = await fetchAllRows('customer_summary', '*', q =>
+          q.order('total_spend',{ascending:false}))
+        if (!cust.length) return
 
         const total = cust.length
         const returning = cust.filter(c=>c.visit_count>1).length

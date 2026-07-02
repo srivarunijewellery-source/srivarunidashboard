@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllRows } from '@/lib/supabase'
 import { fmt_inr, fmt_num, DATA_START } from '@/lib/utils'
 import Link from 'next/link'
 import PageHeader from '@/components/layout/PageHeader'
@@ -46,10 +46,8 @@ export default function OverviewPage() {
       setLoading(true)
       try {
         // All sales
-        const { data: sales } = await supabase.from('sales')
-          .select('date,net_amount,profit,qty,category,voucher_no,mobile_no,customer_name')
-          .gte('date', DATA_START).limit(10000)
-        if (!sales) return
+        const sales = await fetchAllRows('sales', 'date,net_amount,profit,qty,category,voucher_no,mobile_no,customer_name', q =>
+          q.gte('date', DATA_START))
 
         const totalRev = sales.reduce((s,r)=>s+(r.net_amount||0), 0)
         const totalPro = sales.reduce((s,r)=>s+(r.profit||0), 0)
