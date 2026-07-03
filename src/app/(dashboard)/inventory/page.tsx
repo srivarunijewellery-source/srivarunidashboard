@@ -15,19 +15,30 @@ const S = {
   th: { padding:'7px 10px', fontSize:10, fontWeight:600, color:'#6b5b7b', textTransform:'uppercase' as const, letterSpacing:0.5, background:'#f5f0e8', borderBottom:'1px solid #e8d5b7', whiteSpace:'nowrap' as const },
   td: { padding:'5px 10px', fontSize:12, color:'#1a0a2e', borderBottom:'1px solid #f0e8d8', whiteSpace:'nowrap' as const },
 }
+const DRILL_PAGE_SIZE = 30
+
+// Stock value can legitimately be ₹0 (free/promotional stock) — using `??`
+// instead of `||` everywhere below so a real zero isn't silently replaced
+// by a recomputed fallback.
+function stockValueOf(p: any): number {
+  return p.stock_value ?? (p.cost_per_unit ?? 0) * (p.qty ?? 0)
+}
 
 export default function InventoryPage() {
   const { selectedBranch } = useBranch()
   const [productItemCode, setProductItemCode] = useState<string|null>(null)
   const [productHint, setProductHint] = useState<ProductHint|undefined>(undefined)
   const [drillKey, setDrillKey] = useState<{cat:string;brand:string}|null>(null)
+  const [drillPage, setDrillPage] = useState(0)
 
   // ── Single source of truth for all in-stock inventory ──────────────────
-  // Everything below (pivot table, drill-down, the "in stock" half of the
-  // Category/Brand cut) derives from this ONE fully-paginated fetch, so
-  // they can never disagree with each other again — that mismatch earlier
-  // was `.limit()` silently capping at ~1000 rows out of 3,030 that
-  // actually have stock, sampled differently in different places.
+  // Pivot table, drill-down, and the Category/Brand cut's "in stock" figure
+  // all derive from this ONE fully-paginated fetch (fetchAllRows bypasses
+  // Supabase's ~1000-row response cap), so they can't disagree with each
+  // other. Note: this view is per PURCHASE BATCH, not per product — the
+  // same item_code can appear as more than one row if it has multiple
+  // batches in stock. Aggregated by item_code below wherever a "list of
+  // products" is shown, so each product appears exactly once.
   const [allInventory, setAllInventory] = useState<any[]>([])
   const [invLoading, setInvLoading] = useState(false)
 
@@ -48,32 +59,59 @@ export default function InventoryPage() {
   const canonicalCategories = useMemo(() => categoryGroups.map(g=>g.canonical), [categoryGroups])
   const allBrandsList = useMemo(() => [...new Set(allInventory.map(r=>r.brand).filter(Boolean))].sort(), [allInventory])
 
+  // One row per item_code — batches for the same product are summed
+  // together so the same product can never appear twice.
+  const productsByItemCode = useMemo(() => {
+    const map: Record<string, any> = {}
+    for (const p of allInventory) {
+      const key = p.item_code
+      if (!map[key]) {
+        map[key] = { ...p, category: normalizeCategory(p.category), qty: 0, stock_value: 0, _batches: 0 }
+      }
+      map[key].qty += p.qty ?? 0
+      map[key].stock_value += stockValueOf(p)
+      map[key]._batches += 1
+      // Keep the highest-mrp / most-complete-looking record's descriptive fields
+      if (!map[key].image_url && p.image_url) map[key].image_url = p.image_url
+      if (!map[key].mrp && p.mrp) map[key].mrp = p.mrp
+    }
+    return Object.values(map)
+  }, [allInventory])
+
   const { rows: pivotRows, brands: pivotBrands } = useMemo(() => {
     const map: Record<string, any> = {}
     const brandSet = new Set<string>()
-    for (const p of allInventory) {
-      const cat = normalizeCategory(p.category)
+    for (const p of productsByItemCode) {
+      const cat = p.category
       const br = p.brand || 'Unknown'
       brandSet.add(br)
-      const val = p.stock_value || (p.cost_per_unit||0)*(p.qty||0)
       if (!map[cat]) map[cat] = { category:cat, total:{qty:0,value:0}, brands:{} }
-      map[cat].total.qty += p.qty||0
-      map[cat].total.value += val
+      map[cat].total.qty += p.qty
+      map[cat].total.value += p.stock_value
       if (!map[cat].brands[br]) map[cat].brands[br] = { qty:0, value:0 }
-      map[cat].brands[br].qty += p.qty||0
-      map[cat].brands[br].value += val
+      map[cat].brands[br].qty += p.qty
+      map[cat].brands[br].value += p.stock_value
     }
     return { rows: Object.values(map).sort((a:any,b:any)=>b.total.qty-a.total.qty), brands: [...brandSet].sort() }
-  }, [allInventory])
+  }, [productsByItemCode])
 
   const drillItems = useMemo(() => {
     if (!drillKey) return []
-    return allInventory.filter(p => {
-      if (drillKey.cat!=='ALL' && normalizeCategory(p.category)!==drillKey.cat) return false
+    return productsByItemCode.filter((p:any) => {
+      if (drillKey.cat!=='ALL' && p.category!==drillKey.cat) return false
       if (drillKey.brand!=='ALL' && (p.brand||'Unknown')!==drillKey.brand) return false
       return true
-    }).sort((a,b)=>b.qty-a.qty)
-  }, [allInventory, drillKey])
+    }).sort((a:any,b:any)=>b.qty-a.qty)
+  }, [productsByItemCode, drillKey])
+
+  const drillTotals = useMemo(() => ({
+    qty: drillItems.reduce((s:number,p:any)=>s+p.qty,0),
+    value: drillItems.reduce((s:number,p:any)=>s+p.stock_value,0),
+  }), [drillItems])
+
+  useEffect(() => { setDrillPage(0) }, [drillKey])
+  const drillPageItems = drillItems.slice(drillPage*DRILL_PAGE_SIZE, (drillPage+1)*DRILL_PAGE_SIZE)
+  const drillTotalPages = Math.ceil(drillItems.length/DRILL_PAGE_SIZE)
 
   // ── Category/Brand performance cut ──────────────────────────────────────
   const [cutCategory, setCutCategory] = useState('ALL')
@@ -84,16 +122,16 @@ export default function InventoryPage() {
   const [cutLoading, setCutLoading] = useState(false)
 
   const cutStock = useMemo(() => {
-    const filtered = allInventory.filter(p => {
-      if (cutCategory!=='ALL' && normalizeCategory(p.category)!==cutCategory) return false
+    const filtered = productsByItemCode.filter((p:any) => {
+      if (cutCategory!=='ALL' && p.category!==cutCategory) return false
       if (cutBrand!=='ALL' && (p.brand||'Unknown')!==cutBrand) return false
       return true
     })
     return {
-      qty: filtered.reduce((s,r)=>s+(r.qty||0),0),
-      value: filtered.reduce((s,r)=>s+(r.stock_value||(r.cost_per_unit||0)*(r.qty||0)),0),
+      qty: filtered.reduce((s:number,r:any)=>s+r.qty,0),
+      value: filtered.reduce((s:number,r:any)=>s+r.stock_value,0),
     }
-  }, [allInventory, cutCategory, cutBrand])
+  }, [productsByItemCode, cutCategory, cutBrand])
 
   const loadCutSold = useCallback(async () => {
     setCutLoading(true)
@@ -162,7 +200,7 @@ export default function InventoryPage() {
 
         <div>
           <h2 className="font-display" style={{ fontSize:18, color:'#3b0764', margin:0 }}>Stock Snapshot — Category × Brand</h2>
-          <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Click any cell for product detail · Stock value from purchase rates · Sold items are on the Sales → Details page</p>
+          <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Click any cell for the product list · one row per product (multi-batch items summed) · Sold items are on the Sales → Details page</p>
         </div>
 
         {invLoading?<div style={{ height:200, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>:(
@@ -200,22 +238,28 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {drillKey&&drillItems.length>0&&(
+        {drillKey&&(
           <div style={S.section}>
             <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <div>
                 <h3 className="font-display" style={{ color:'#3b0764', margin:0, fontSize:15 }}>
                   {drillKey.cat==='ALL'?'All Products':drillKey.brand==='ALL'?drillKey.cat:`${drillKey.cat} — ${drillKey.brand}`}
                 </h3>
-                <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{drillItems.length} products in stock · click a name or barcode for full detail</p>
+                <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>
+                  {drillItems.length} products · {fmt_num(drillTotals.qty)} units · {fmt_inr(drillTotals.value)} · click a name or barcode for full detail
+                </p>
               </div>
               <button onClick={()=>setDrillKey(null)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>
             </div>
+            {drillItems.length===0 ? (
+              <div style={{ padding:32, textAlign:'center', color:'#6b5b7b', fontSize:13 }}>No products match this selection.</div>
+            ) : (
+            <>
             <div style={{ overflow:'auto', maxHeight:420 }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead><tr>{['Product','Category','Brand','Stock','MRP','Cost/Unit','Stock Value'].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {drillItems.map((item,i)=>(
+                  {drillPageItems.map((item:any,i:number)=>(
                     <tr key={item.item_code} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                       <td style={S.td}>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -226,9 +270,9 @@ export default function InventoryPage() {
                             style={{ fontWeight:600, color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd', overflow:'hidden', textOverflow:'ellipsis', maxWidth:220 }}>{item.product_name?.slice(0,40)}</span>
                         </div>
                       </td>
-                      <td style={{ ...S.td, color:'#6b5b7b' }}>{normalizeCategory(item.category)}</td>
+                      <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
-                      <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{item.qty}</td>
+                      <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b'}}> ({item._batches} batches)</span>:''}</td>
                       <td style={{ ...S.td, textAlign:'right' }}>{item.mrp>0?fmt_inr(item.mrp):'—'}</td>
                       <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
@@ -237,6 +281,15 @@ export default function InventoryPage() {
                 </tbody>
               </table>
             </div>
+            {drillTotalPages>1&&(
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'12px 0' }}>
+                <button onClick={()=>setDrillPage(p=>Math.max(0,p-1))} disabled={drillPage===0} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:drillPage===0?'default':'pointer', color:drillPage===0?'#ccc':'#3b0764' }}>← Prev</button>
+                <span style={{ fontSize:12, color:'#6b5b7b' }}>{drillPage*DRILL_PAGE_SIZE+1}–{Math.min((drillPage+1)*DRILL_PAGE_SIZE,drillItems.length)} of {drillItems.length}</span>
+                <button onClick={()=>setDrillPage(p=>Math.min(drillTotalPages-1,p+1))} disabled={drillPage>=drillTotalPages-1} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:drillPage>=drillTotalPages-1?'default':'pointer', color:drillPage>=drillTotalPages-1?'#ccc':'#3b0764' }}>Next →</button>
+              </div>
+            )}
+            </>
+            )}
           </div>
         )}
       </div>
