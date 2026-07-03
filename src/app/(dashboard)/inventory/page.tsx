@@ -80,11 +80,11 @@ export default function InventoryPage() {
 
   const { rows: pivotRows, brands: pivotBrands } = useMemo(() => {
     const map: Record<string, any> = {}
-    const brandSet = new Set<string>()
+    const brandTotals: Record<string, number> = {}
     for (const p of productsByItemCode) {
       const cat = p.category
       const br = p.brand || 'Unknown'
-      brandSet.add(br)
+      brandTotals[br] = (brandTotals[br] || 0) + p.qty
       if (!map[cat]) map[cat] = { category:cat, total:{qty:0,value:0}, brands:{} }
       map[cat].total.qty += p.qty
       map[cat].total.value += p.stock_value
@@ -92,7 +92,14 @@ export default function InventoryPage() {
       map[cat].brands[br].qty += p.qty
       map[cat].brands[br].value += p.stock_value
     }
-    return { rows: Object.values(map).sort((a:any,b:any)=>b.total.qty-a.total.qty), brands: [...brandSet].sort() }
+    // Rows (categories) sorted top-to-bottom by total qty, highest first.
+    // Columns (brands) sorted left-to-right by their OWN overall total qty
+    // (summed across every category), highest first — so the table reads
+    // as "biggest categories on top, biggest brands on the left" both ways.
+    return {
+      rows: Object.values(map).sort((a:any,b:any)=>b.total.qty-a.total.qty),
+      brands: Object.keys(brandTotals).sort((a,b)=>brandTotals[b]-brandTotals[a]),
+    }
   }, [productsByItemCode])
 
   const drillItems = useMemo(() => {
