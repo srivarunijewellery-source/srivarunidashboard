@@ -257,7 +257,7 @@ export default function InventoryPage() {
             <>
             <div style={{ overflow:'auto', maxHeight:420 }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                <thead><tr>{['Product','Category','Brand','Stock','MRP','Cost/Unit','Stock Value'].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
+                <thead><tr>{['Product','Barcode','Category','Brand','Stock','MRP','Cost/Unit','Stock Value'].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
                 <tbody>
                   {drillPageItems.map((item:any,i:number)=>(
                     <tr key={item.item_code} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
@@ -270,6 +270,7 @@ export default function InventoryPage() {
                             style={{ fontWeight:600, color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd', overflow:'hidden', textOverflow:'ellipsis', maxWidth:220 }}>{item.product_name?.slice(0,40)}</span>
                         </div>
                       </td>
+                      <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:10 }}>{item.item_code}</td>
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b'}}> ({item._batches} batches)</span>:''}</td>
