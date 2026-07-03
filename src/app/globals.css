@@ -62,3 +62,8 @@ body {
 .shadow-card     { box-shadow: 0 2px 8px rgba(59,7,100,0.08); }
 .shadow-card-hover { box-shadow: 0 8px 32px rgba(59,7,100,0.16); }
 .shadow-gem      { box-shadow: 0 0 0 1px rgba(124,58,237,0.12), 0 4px 16px rgba(59,7,100,0.12); }
+
+
+/* Inventory table row hover — subtle highlight for scannability */
+.inv-row { transition: background-color 0.12s ease; }
+.inv-row:hover { background-color: #f3ecff !important; }

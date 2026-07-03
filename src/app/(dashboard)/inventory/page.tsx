@@ -8,19 +8,23 @@ import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import { useBranch } from '@/lib/branch-context'
 import { useDateRange } from '@/lib/date-range-context'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Tags, Sparkles, LayoutGrid, ChevronDown, X } from 'lucide-react'
+
+// Numeric cells always use tabular figures so digits line up vertically
+// regardless of how many characters they have — this, plus splitting
+// "qty · value" into two real columns instead of one combined string, is
+// what actually fixes ragged alignment (a middot in a variable-width
+// string can't align consistently no matter how it's styled).
+const NUM: React.CSSProperties = { fontVariantNumeric: 'tabular-nums', textAlign: 'right' }
 
 const S = {
   section: { background:'#fff', borderRadius:16, border:'1px solid #e8d5b7', boxShadow:'0 2px 8px rgba(59,7,100,0.07)', overflow:'hidden' },
-  th: { padding:'8px 10px', fontSize:10, fontWeight:700, color:'#6b5b7b', textTransform:'uppercase' as const, letterSpacing:0.5, background:'#f5f0e8', border:'1px solid #e8d5b7', whiteSpace:'nowrap' as const },
-  td: { padding:'6px 10px', fontSize:12, color:'#1a0a2e', border:'1px solid #f0e8d8', whiteSpace:'nowrap' as const },
-  totalTd: { padding:'6px 10px', fontSize:12, color:'#3b0764', border:'1px solid #e8d5b7', whiteSpace:'nowrap' as const, fontWeight:700, background:'#f5f0ff' },
+  th: { padding:'9px 12px', fontSize:10, fontWeight:700, color:'#6b5b7b', textTransform:'uppercase' as const, letterSpacing:0.6, background:'#f5f0e8', borderBottom:'2px solid #e8d5b7', borderRight:'1px solid #ece1cc', whiteSpace:'nowrap' as const },
+  td: { padding:'7px 12px', fontSize:12.5, color:'#1a0a2e', borderBottom:'1px solid #f0e8d8', borderRight:'1px solid #f5f0e8', whiteSpace:'nowrap' as const },
+  totalTd: { padding:'8px 12px', fontSize:12.5, color:'#3b0764', borderTop:'2px solid #7c3aed', borderRight:'1px solid #ded0f5', whiteSpace:'nowrap' as const, fontWeight:700, background:'#f5f0ff' },
 }
 const DRILL_PAGE_SIZE = 30
 
-// Stock value can legitimately be ₹0 (free/promotional stock) — using `??`
-// instead of `||` everywhere below so a real zero isn't silently replaced
-// by a recomputed fallback.
 function stockValueOf(p: any): number {
   return p.stock_value ?? (p.cost_per_unit ?? 0) * (p.qty ?? 0)
 }
@@ -30,12 +34,49 @@ function openInErp(productId?: string) {
   if (url) window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+// A styled native <select> — keeps full accessibility/keyboard behaviour
+// of a real <select> while matching the app's purple/cream identity
+// instead of the browser default.
+function FilterSelect({ icon: Icon, label, value, onChange, options, allLabel }: {
+  icon: any; label: string; value: string; onChange: (v: string) => void
+  options: string[]; allLabel: string
+}) {
+  const isActive = value !== 'ALL'
+  return (
+    <div>
+      <label style={{ fontSize:10, color:'#8b7d97', fontWeight:700, textTransform:'uppercase', letterSpacing:0.8, display:'flex', alignItems:'center', gap:5, marginBottom:6 }}>
+        <Icon size={11}/> {label}
+      </label>
+      <div style={{ position:'relative' }}>
+        <select value={value} onChange={e=>onChange(e.target.value)} style={{
+          appearance:'none', WebkitAppearance:'none',
+          padding:'9px 34px 9px 14px', borderRadius:10, fontSize:13, fontWeight:isActive?600:500,
+          color: isActive?'#3b0764':'#4a3d5c',
+          background: isActive?'#f3ecff':'#faf8f4',
+          border:`1.5px solid ${isActive?'#c4a7f0':'#e8d5b7'}`,
+          minWidth:180, cursor:'pointer', outline:'none',
+        }}>
+          <option value="ALL">{allLabel}</option>
+          {options.map(o=><option key={o} value={o}>{o}</option>)}
+        </select>
+        <ChevronDown size={14} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', color:isActive?'#7c3aed':'#a99bb8', pointerEvents:'none' }}/>
+        {isActive && (
+          <button onClick={()=>onChange('ALL')} title={`Clear ${label.toLowerCase()}`} style={{
+            position:'absolute', right:-8, top:-8, width:18, height:18, borderRadius:'50%',
+            background:'#7c3aed', color:'#fff', border:'2px solid #fff', cursor:'pointer',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:0,
+          }}><X size={10}/></button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function InventoryPage() {
   const { selectedBranch } = useBranch()
   const [drillKey, setDrillKey] = useState<{cat:string;brand:string}|null>(null)
   const [drillPage, setDrillPage] = useState(0)
 
-  // ── Single source of truth for all in-stock inventory ──────────────────
   const [allInventory, setAllInventory] = useState<any[]>([])
   const [invLoading, setInvLoading] = useState(false)
 
@@ -48,23 +89,15 @@ export default function InventoryPage() {
   }, [])
   useEffect(() => { loadInventory() }, [loadInventory])
 
-  // Category rationalization — the ERP has near-duplicate spellings
-  // ("BANGLE" vs "bangles", "mang tika" vs "Maang Tikka", "Short Haram" vs
-  // "Short Necklace", etc). normalizeCategory() rolls them all up to one
-  // canonical name everywhere below.
   const categoryGroups = useMemo(() => buildCategoryGroups(allInventory.map(r=>r.category)), [allInventory])
   const canonicalCategories = useMemo(() => categoryGroups.map(g=>g.canonical), [categoryGroups])
   const allBrandsList = useMemo(() => [...new Set(allInventory.map(r=>r.brand).filter(Boolean))].sort(), [allInventory])
 
-  // One row per item_code — batches for the same product are summed
-  // together so the same product can never appear twice.
   const productsByItemCode = useMemo(() => {
     const map: Record<string, any> = {}
     for (const p of allInventory) {
       const key = p.item_code
-      if (!map[key]) {
-        map[key] = { ...p, category: normalizeCategory(p.category), qty: 0, stock_value: 0, _batches: 0 }
-      }
+      if (!map[key]) map[key] = { ...p, category: normalizeCategory(p.category), qty: 0, stock_value: 0, _batches: 0 }
       map[key].qty += p.qty ?? 0
       map[key].stock_value += stockValueOf(p)
       map[key]._batches += 1
@@ -93,7 +126,6 @@ export default function InventoryPage() {
       rows: Object.values(map).sort((a:any,b:any)=>b.total.qty-a.total.qty),
       brands: Object.keys(brandTotals).sort((a,b)=>brandTotals[b]-brandTotals[a]),
       grandTotal: grand,
-      brandTotals,
     }
   }, [productsByItemCode])
 
@@ -115,7 +147,6 @@ export default function InventoryPage() {
   const drillPageItems = drillItems.slice(drillPage*DRILL_PAGE_SIZE, (drillPage+1)*DRILL_PAGE_SIZE)
   const drillTotalPages = Math.ceil(drillItems.length/DRILL_PAGE_SIZE)
 
-  // ── Category/Brand performance cut ──────────────────────────────────────
   const [cutCategory, setCutCategory] = useState('ALL')
   const [cutBrand, setCutBrand] = useState('ALL')
   const { grain: cutGrain, offset: cutOffset, setGrain: setCutGrain, setOffset: setCutOffset } = useDateRange()
@@ -129,10 +160,7 @@ export default function InventoryPage() {
       if (cutBrand!=='ALL' && (p.brand||'Unknown')!==cutBrand) return false
       return true
     })
-    return {
-      qty: filtered.reduce((s:number,r:any)=>s+r.qty,0),
-      value: filtered.reduce((s:number,r:any)=>s+r.stock_value,0),
-    }
+    return { qty: filtered.reduce((s:number,r:any)=>s+r.qty,0), value: filtered.reduce((s:number,r:any)=>s+r.stock_value,0) }
   }, [productsByItemCode, cutCategory, cutBrand])
 
   const loadCutSold = useCallback(async () => {
@@ -157,47 +185,44 @@ export default function InventoryPage() {
   return (
     <div style={{ minHeight:'100%', background:'#f5f0e8' }}>
       <PageHeader title="Inventory" subtitle="Live stock snapshot by category and brand" />
-      <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:20 }}>
+      <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:22 }}>
 
         {/* ═══════════ CATEGORY / BRAND PERFORMANCE CUT ═══════════ */}
-        <div style={{ background:'#fff', borderRadius:16, border:'1px solid #e8d5b7', boxShadow:'0 2px 8px rgba(59,7,100,0.07)', padding:20, display:'flex', flexDirection:'column', gap:16 }}>
-          <div>
-            <h2 className="font-display" style={{ fontSize:17, color:'#3b0764', margin:0 }}>Category / Brand Performance</h2>
-            <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Pick a category and/or brand — see units sold in the selected period vs. units still in stock right now</p>
-          </div>
-
-          <div style={{ display:'flex', flexWrap:'wrap', alignItems:'center', gap:12 }}>
-            <div>
-              <label style={{ fontSize:10, color:'#6b5b7b', textTransform:'uppercase', letterSpacing:0.5, display:'block', marginBottom:4 }}>Category</label>
-              <select value={cutCategory} onChange={e=>setCutCategory(e.target.value)} style={{ padding:'8px 12px', borderRadius:8, border:'1px solid #e8d5b7', fontSize:13, color:'#1a0a2e', background:'#fff', minWidth:160 }}>
-                <option value="ALL">All Categories</option>
-                {canonicalCategories.map(c=><option key={c} value={c}>{c}</option>)}
-              </select>
+        <div style={{
+          borderRadius:18, overflow:'hidden', border:'1px solid #e8d5b7', boxShadow:'0 4px 16px rgba(59,7,100,0.08)',
+        }}>
+          <div style={{ background:'linear-gradient(120deg, #3b0764 0%, #5b21b6 100%)', padding:'16px 22px', display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:9, background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Sparkles size={16} color="#fff"/>
             </div>
             <div>
-              <label style={{ fontSize:10, color:'#6b5b7b', textTransform:'uppercase', letterSpacing:0.5, display:'block', marginBottom:4 }}>Brand</label>
-              <select value={cutBrand} onChange={e=>setCutBrand(e.target.value)} style={{ padding:'8px 12px', borderRadius:8, border:'1px solid #e8d5b7', fontSize:13, color:'#1a0a2e', background:'#fff', minWidth:160 }}>
-                <option value="ALL">All Brands</option>
-                {allBrandsList.map(b=><option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-            <div style={{ marginLeft:'auto' }}>
-              <DateNav grain={cutGrain} onGrainChange={setCutGrain} offset={cutOffset} onOffsetChange={setCutOffset} label={cutRange.label} />
+              <h2 className="font-display" style={{ fontSize:16, color:'#fff', margin:0 }}>Category / Brand Performance</h2>
+              <p style={{ fontSize:11.5, color:'#d4c2f0', margin:'2px 0 0' }}>Units sold in the selected period vs. units still in stock right now</p>
             </div>
           </div>
 
-          {(cutLoading||invLoading) ? (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
-              {Array.from({length:4}).map((_,i)=><div key={i} style={{ height:80, background:'#f5f0e8', borderRadius:14 }}/>)}
+          <div style={{ background:'#fff', padding:'20px 22px', display:'flex', flexDirection:'column', gap:18 }}>
+            <div style={{ display:'flex', flexWrap:'wrap', alignItems:'flex-end', gap:20 }}>
+              <FilterSelect icon={Tags} label="Category" value={cutCategory} onChange={setCutCategory} options={canonicalCategories} allLabel="All Categories"/>
+              <FilterSelect icon={LayoutGrid} label="Brand" value={cutBrand} onChange={setCutBrand} options={allBrandsList} allLabel="All Brands"/>
+              <div style={{ marginLeft:'auto' }}>
+                <DateNav grain={cutGrain} onGrainChange={setCutGrain} offset={cutOffset} onOffsetChange={setCutOffset} label={cutRange.label} />
+              </div>
             </div>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
-              <MetricCard label="Sold" value={fmt_num(cutSold.qty)} sub={cutRange.label} accent="purple"/>
-              <MetricCard label="Revenue" value={fmt_inr(cutSold.revenue)} sub={cutRange.label} accent="green"/>
-              <MetricCard label="In Stock Now" value={fmt_num(cutStock.qty)} accent="beige"/>
-              <MetricCard label="Stock Value" value={fmt_inr(cutStock.value)} accent="beige"/>
-            </div>
-          )}
+
+            {(cutLoading||invLoading) ? (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+                {Array.from({length:4}).map((_,i)=><div key={i} style={{ height:80, background:'#f5f0e8', borderRadius:14 }}/>)}
+              </div>
+            ) : (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+                <MetricCard label="Sold" value={fmt_num(cutSold.qty)} sub={cutRange.label} accent="purple"/>
+                <MetricCard label="Revenue" value={fmt_inr(cutSold.revenue)} sub={cutRange.label} accent="green"/>
+                <MetricCard label="In Stock Now" value={fmt_num(cutStock.qty)} accent="beige"/>
+                <MetricCard label="Stock Value" value={fmt_inr(cutStock.value)} accent="beige"/>
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
@@ -207,29 +232,41 @@ export default function InventoryPage() {
 
         {invLoading?<div style={{ height:200, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>:(
           <div style={S.section}>
-            <div style={{ overflow:'auto', maxHeight:460 }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, border:'1px solid #e8d5b7' }}>
+            <div style={{ overflow:'auto', maxHeight:480 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
-                  <tr style={{ background:'#3b0764' }}>
-                    <th style={{ ...S.th, background:'#3b0764', color:'#fff', position:'sticky', left:0, top:0, minWidth:150, zIndex:2 }}>Category</th>
-                    <th style={{ ...S.th, background:'#4c1d95', color:'#fff', textAlign:'right', cursor:'pointer', position:'sticky', top:0, zIndex:1 }} onClick={()=>setDrillKey({cat:'ALL',brand:'ALL'})}>TOTAL</th>
-                    {pivotBrands.map(b=><th key={b} style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'right', minWidth:90, position:'sticky', top:0, zIndex:1 }}>{b}</th>)}
+                  <tr>
+                    <th style={{ ...S.th, background:'#3b0764', color:'#fff', position:'sticky', left:0, top:0, minWidth:150, zIndex:3, borderRight:'2px solid #2a044a' }}>Category</th>
+                    <th colSpan={2} style={{ ...S.th, background:'#4c1d95', color:'#fff', textAlign:'center', cursor:'pointer', position:'sticky', top:0, zIndex:2 }} onClick={()=>setDrillKey({cat:'ALL',brand:'ALL'})}>TOTAL</th>
+                    {pivotBrands.map(b=>(
+                      <th key={b} colSpan={2} style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'center', minWidth:140, position:'sticky', top:0, zIndex:1 }}>{b}</th>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', position:'sticky', left:0, top:32, zIndex:3, borderRight:'2px solid #2a044a' }}></th>
+                    <th style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2 }}>Qty</th>
+                    <th style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2 }}>Value</th>
+                    {pivotBrands.map(b=>(
+                      <>
+                        <th key={b+'q'} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1 }}>Qty</th>
+                        <th key={b+'v'} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1 }}>Value</th>
+                      </>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {pivotRows.map((row:any,ri)=>(
-                    <tr key={row.category} style={{ background:ri%2===0?'#fff':'#faf8ff' }}>
-                      <td style={{ ...S.td, color:'#3b0764', fontWeight:700, position:'sticky', left:0, background:ri%2===0?'#fff':'#faf8ff', cursor:'pointer' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{row.category}</td>
-                      <td style={{ ...S.td, textAlign:'right', cursor:'pointer' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>
-                        <span style={{ fontWeight:700 }}>{fmt_num(row.total.qty)}</span>
-                        <span style={{ color:'#6b5b7b', fontSize:10 }}> · {row.total.value>0?fmt_inr(row.total.value):'(cost N/A)'}</span>
-                      </td>
+                    <tr key={row.category} className="inv-row" style={{ background:ri%2===0?'#fff':'#faf8ff' }}>
+                      <td style={{ ...S.td, color:'#3b0764', fontWeight:700, position:'sticky', left:0, background:ri%2===0?'#fff':'#faf8ff', cursor:'pointer', borderRight:'2px solid #e8d5b7' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{row.category}</td>
+                      <td style={{ ...S.td, ...NUM, fontWeight:700, cursor:'pointer', background:'#faf6ff' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{fmt_num(row.total.qty)}</td>
+                      <td style={{ ...S.td, ...NUM, fontWeight:700, cursor:'pointer', color:'#6b5b7b', background:'#faf6ff' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{row.total.value>0?fmt_inr(row.total.value):'—'}</td>
                       {pivotBrands.map(b=>{
                         const cell=row.brands[b]
                         return (
-                          <td key={b} style={{ ...S.td, textAlign:'right', cursor:cell?'pointer':'default', background:cell?undefined:'#fafafa' }} onClick={()=>cell&&setDrillKey({cat:row.category,brand:b})}>
-                            {cell?(<><span style={{ fontWeight:600 }}>{fmt_num(cell.qty)}</span><span style={{ color:'#6b5b7b', fontSize:10 }}> · {cell.value>0?fmt_inr(cell.value):'—'}</span></>):<span style={{ color:'#e8d5b7' }}>—</span>}
-                          </td>
+                          <>
+                            <td key={b+'q'} style={{ ...S.td, ...NUM, fontWeight:cell?600:400, cursor:cell?'pointer':'default', background:cell?undefined:'#fafafa', color:cell?'#1a0a2e':'#d8cfe0' }} onClick={()=>cell&&setDrillKey({cat:row.category,brand:b})}>{cell?fmt_num(cell.qty):'—'}</td>
+                            <td key={b+'v'} style={{ ...S.td, ...NUM, cursor:cell?'pointer':'default', background:cell?undefined:'#fafafa', color:cell?'#6b5b7b':'#d8cfe0' }} onClick={()=>cell&&setDrillKey({cat:row.category,brand:b})}>{cell&&cell.value>0?fmt_inr(cell.value):cell?'—':''}</td>
+                          </>
                         )
                       })}
                     </tr>
@@ -237,19 +274,17 @@ export default function InventoryPage() {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td style={{ ...S.totalTd, position:'sticky', left:0 }}>TOTAL (ALL CATEGORIES)</td>
-                    <td style={{ ...S.totalTd, textAlign:'right' }}>
-                      <span>{fmt_num(grandTotal.qty)}</span>
-                      <span style={{ fontSize:10 }}> · {grandTotal.value>0?fmt_inr(grandTotal.value):'—'}</span>
-                    </td>
+                    <td style={{ ...S.totalTd, position:'sticky', left:0, borderRight:'2px solid #ded0f5' }}>GRAND TOTAL</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(grandTotal.qty)}</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{grandTotal.value>0?fmt_inr(grandTotal.value):'—'}</td>
                     {pivotBrands.map(b=>{
                       const bt = pivotRows.reduce((s:number,row:any)=>s+(row.brands[b]?.qty||0),0)
                       const bv = pivotRows.reduce((s:number,row:any)=>s+(row.brands[b]?.value||0),0)
                       return (
-                        <td key={b} style={{ ...S.totalTd, textAlign:'right' }}>
-                          <span>{fmt_num(bt)}</span>
-                          <span style={{ fontSize:10 }}> · {bv>0?fmt_inr(bv):'—'}</span>
-                        </td>
+                        <>
+                          <td key={b+'q'} style={{ ...S.totalTd, ...NUM }}>{fmt_num(bt)}</td>
+                          <td key={b+'v'} style={{ ...S.totalTd, ...NUM }}>{bv>0?fmt_inr(bv):'—'}</td>
+                        </>
                       )
                     })}
                   </tr>
@@ -277,11 +312,20 @@ export default function InventoryPage() {
             ) : (
             <>
             <div style={{ overflow:'auto', maxHeight:460 }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, border:'1px solid #e8d5b7' }}>
-                <thead><tr>{['Product','Barcode','Category','Brand','Stock','Cost/Unit','Stock Value',''].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead><tr>
+                  <th style={{ ...S.th, position:'sticky', top:0 }}>Product</th>
+                  <th style={{ ...S.th, position:'sticky', top:0 }}>Barcode</th>
+                  <th style={{ ...S.th, position:'sticky', top:0 }}>Category</th>
+                  <th style={{ ...S.th, position:'sticky', top:0 }}>Brand</th>
+                  <th style={{ ...S.th, position:'sticky', top:0, textAlign:'right' }}>Stock</th>
+                  <th style={{ ...S.th, position:'sticky', top:0, textAlign:'right' }}>Cost/Unit</th>
+                  <th style={{ ...S.th, position:'sticky', top:0, textAlign:'right' }}>Stock Value</th>
+                  <th style={{ ...S.th, position:'sticky', top:0 }}></th>
+                </tr></thead>
                 <tbody>
                   {drillPageItems.map((item:any,i:number)=>(
-                    <tr key={item.item_code} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
+                    <tr key={item.item_code} className="inv-row" style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                       <td style={S.td}>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                           <HoverImage src={item.image_url} alt={item.product_name} previewSize={280}
@@ -294,9 +338,9 @@ export default function InventoryPage() {
                       <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:10 }}>{item.item_code}</td>
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
-                      <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b'}}> ({item._batches} batches)</span>:''}</td>
-                      <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
-                      <td style={{ ...S.td, textAlign:'right', fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
+                      <td style={{ ...S.td, ...NUM, fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b',fontWeight:400}}> ({item._batches}b)</span>:''}</td>
+                      <td style={{ ...S.td, ...NUM, color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
+                      <td style={{ ...S.td, ...NUM, fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
                       <td style={{ ...S.td, textAlign:'center' }}>
                         <button onClick={()=>openInErp(item.product_id)} title="Open in VasyERP" style={{ background:'none', border:'none', cursor:'pointer', color:'#7c3aed', display:'flex', alignItems:'center' }}>
                           <ExternalLink size={13}/>
@@ -308,9 +352,9 @@ export default function InventoryPage() {
                 <tfoot>
                   <tr>
                     <td style={S.totalTd} colSpan={4}>TOTAL ({drillItems.length} products)</td>
-                    <td style={{ ...S.totalTd, textAlign:'right' }}>{fmt_num(drillTotals.qty)}</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(drillTotals.qty)}</td>
                     <td style={S.totalTd}></td>
-                    <td style={{ ...S.totalTd, textAlign:'right' }}>{drillTotals.value>0?fmt_inr(drillTotals.value):'—'}</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{drillTotals.value>0?fmt_inr(drillTotals.value):'—'}</td>
                     <td style={S.totalTd}></td>
                   </tr>
                 </tfoot>
