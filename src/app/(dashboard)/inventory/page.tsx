@@ -9,6 +9,8 @@ import MetricCard from '@/components/ui/MetricCard'
 import { useBranch } from '@/lib/branch-context'
 import { useDateRange } from '@/lib/date-range-context'
 import { ExternalLink, Tags, Sparkles, LayoutGrid, ChevronDown, X } from 'lucide-react'
+import { useSortable } from '@/lib/useSortable'
+import SortIndicator from '@/components/ui/SortIndicator'
 
 // Numeric cells always use tabular figures so digits line up vertically
 // regardless of how many characters they have — this, plus splitting
@@ -129,6 +131,20 @@ export default function InventoryPage() {
     }
   }, [productsByItemCode])
 
+  // Click any column header to sort — first click highest-to-lowest,
+  // second click flips to lowest-to-highest. Since rows here ARE the
+  // categories, sorting by any column (including a specific brand's
+  // Qty/Value) reorders the rows accordingly — this is the "sort rows
+  // too" behaviour for this table.
+  const pivotGetValue = useCallback((row: any, key: string) => {
+    if (key === 'category') return row.category
+    if (key === 'total_qty') return row.total.qty
+    if (key === 'total_value') return row.total.value
+    const [, brand, field] = key.split('::')
+    return row.brands[brand]?.[field] ?? -1
+  }, [])
+  const { sorted: sortedPivotRows, sortKey: pivotSortKey, sortDir: pivotSortDir, toggleSort: togglePivotSort } = useSortable(pivotRows, pivotGetValue)
+
   const drillItems = useMemo(() => {
     if (!drillKey) return []
     return productsByItemCode.filter((p:any) => {
@@ -143,9 +159,12 @@ export default function InventoryPage() {
     value: drillItems.reduce((s:number,p:any)=>s+p.stock_value,0),
   }), [drillItems])
 
+  const drillGetValue = useCallback((item: any, key: string) => item[key], [])
+  const { sorted: sortedDrillItems, sortKey: drillSortKey, sortDir: drillSortDir, toggleSort: toggleDrillSort } = useSortable(drillItems, drillGetValue)
+
   useEffect(() => { setDrillPage(0) }, [drillKey])
-  const drillPageItems = drillItems.slice(drillPage*DRILL_PAGE_SIZE, (drillPage+1)*DRILL_PAGE_SIZE)
-  const drillTotalPages = Math.ceil(drillItems.length/DRILL_PAGE_SIZE)
+  const drillPageItems = sortedDrillItems.slice(drillPage*DRILL_PAGE_SIZE, (drillPage+1)*DRILL_PAGE_SIZE)
+  const drillTotalPages = Math.ceil(sortedDrillItems.length/DRILL_PAGE_SIZE)
 
   const [cutCategory, setCutCategory] = useState('ALL')
   const [cutBrand, setCutBrand] = useState('ALL')
@@ -236,7 +255,9 @@ export default function InventoryPage() {
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
                   <tr>
-                    <th style={{ ...S.th, background:'#3b0764', color:'#fff', position:'sticky', left:0, top:0, minWidth:150, zIndex:3, borderRight:'2px solid #2a044a' }}>Category</th>
+                    <th onClick={()=>togglePivotSort('category')} style={{ ...S.th, background:'#3b0764', color:'#fff', position:'sticky', left:0, top:0, minWidth:150, zIndex:3, borderRight:'2px solid #2a044a', cursor:'pointer' }}>
+                      Category<SortIndicator active={pivotSortKey==='category'} dir={pivotSortDir}/>
+                    </th>
                     <th colSpan={2} style={{ ...S.th, background:'#4c1d95', color:'#fff', textAlign:'center', cursor:'pointer', position:'sticky', top:0, zIndex:2 }} onClick={()=>setDrillKey({cat:'ALL',brand:'ALL'})}>TOTAL</th>
                     {pivotBrands.map(b=>(
                       <th key={b} colSpan={2} style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'center', minWidth:140, position:'sticky', top:0, zIndex:1 }}>{b}</th>
@@ -244,18 +265,26 @@ export default function InventoryPage() {
                   </tr>
                   <tr>
                     <th style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', position:'sticky', left:0, top:32, zIndex:3, borderRight:'2px solid #2a044a' }}></th>
-                    <th style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2 }}>Qty</th>
-                    <th style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2 }}>Value</th>
+                    <th onClick={()=>togglePivotSort('total_qty')} style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>
+                      Qty<SortIndicator active={pivotSortKey==='total_qty'} dir={pivotSortDir}/>
+                    </th>
+                    <th onClick={()=>togglePivotSort('total_value')} style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>
+                      Value<SortIndicator active={pivotSortKey==='total_value'} dir={pivotSortDir}/>
+                    </th>
                     {pivotBrands.map(b=>(
                       <>
-                        <th key={b+'q'} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1 }}>Qty</th>
-                        <th key={b+'v'} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1 }}>Value</th>
+                        <th key={b+'q'} onClick={()=>togglePivotSort(`brand::${b}::qty`)} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>
+                          Qty<SortIndicator active={pivotSortKey===`brand::${b}::qty`} dir={pivotSortDir}/>
+                        </th>
+                        <th key={b+'v'} onClick={()=>togglePivotSort(`brand::${b}::value`)} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>
+                          Value<SortIndicator active={pivotSortKey===`brand::${b}::value`} dir={pivotSortDir}/>
+                        </th>
                       </>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {pivotRows.map((row:any,ri)=>(
+                  {sortedPivotRows.map((row:any,ri)=>(
                     <tr key={row.category} className="inv-row" style={{ background:ri%2===0?'#fff':'#faf8ff' }}>
                       <td style={{ ...S.td, color:'#3b0764', fontWeight:700, position:'sticky', left:0, background:ri%2===0?'#fff':'#faf8ff', cursor:'pointer', borderRight:'2px solid #e8d5b7' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{row.category}</td>
                       <td style={{ ...S.td, ...NUM, fontWeight:700, cursor:'pointer', background:'#faf6ff' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{fmt_num(row.total.qty)}</td>
@@ -313,16 +342,27 @@ export default function InventoryPage() {
             <>
             <div style={{ overflow:'auto', maxHeight:460 }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                <thead><tr>
-                  <th style={{ ...S.th, position:'sticky', top:0 }}>Product</th>
-                  <th style={{ ...S.th, position:'sticky', top:0 }}>Barcode</th>
-                  <th style={{ ...S.th, position:'sticky', top:0 }}>Category</th>
-                  <th style={{ ...S.th, position:'sticky', top:0 }}>Brand</th>
-                  <th style={{ ...S.th, position:'sticky', top:0, textAlign:'right' }}>Stock</th>
-                  <th style={{ ...S.th, position:'sticky', top:0, textAlign:'right' }}>Cost/Unit</th>
-                  <th style={{ ...S.th, position:'sticky', top:0, textAlign:'right' }}>Stock Value</th>
-                  <th style={{ ...S.th, position:'sticky', top:0 }}></th>
-                </tr></thead>
+                <thead>
+                  <tr>
+                    <th onClick={()=>toggleDrillSort('product_name')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Product<SortIndicator active={drillSortKey==='product_name'} dir={drillSortDir}/></th>
+                    <th onClick={()=>toggleDrillSort('item_code')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Barcode<SortIndicator active={drillSortKey==='item_code'} dir={drillSortDir}/></th>
+                    <th onClick={()=>toggleDrillSort('category')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Category<SortIndicator active={drillSortKey==='category'} dir={drillSortDir}/></th>
+                    <th onClick={()=>toggleDrillSort('brand')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Brand<SortIndicator active={drillSortKey==='brand'} dir={drillSortDir}/></th>
+                    <th onClick={()=>toggleDrillSort('qty')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Stock<SortIndicator active={drillSortKey==='qty'} dir={drillSortDir}/></th>
+                    <th onClick={()=>toggleDrillSort('cost_per_unit')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Cost/Unit<SortIndicator active={drillSortKey==='cost_per_unit'} dir={drillSortDir}/></th>
+                    <th onClick={()=>toggleDrillSort('stock_value')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Stock Value<SortIndicator active={drillSortKey==='stock_value'} dir={drillSortDir}/></th>
+                    <th style={{ ...S.th, position:'sticky', top:0 }}></th>
+                  </tr>
+                  {/* Totals pinned at the TOP, right under the headers, so they're
+                      visible without scrolling to the bottom of a long list */}
+                  <tr>
+                    <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }} colSpan={4}>TOTAL ({drillItems.length} products)</td>
+                    <td style={{ ...S.totalTd, ...NUM, position:'sticky', top:33, zIndex:1 }}>{fmt_num(drillTotals.qty)}</td>
+                    <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }}></td>
+                    <td style={{ ...S.totalTd, ...NUM, position:'sticky', top:33, zIndex:1 }}>{drillTotals.value>0?fmt_inr(drillTotals.value):'—'}</td>
+                    <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }}></td>
+                  </tr>
+                </thead>
                 <tbody>
                   {drillPageItems.map((item:any,i:number)=>(
                     <tr key={item.item_code} className="inv-row" style={{ background:i%2===0?'#fff':'#faf8ff' }}>
@@ -349,15 +389,6 @@ export default function InventoryPage() {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot>
-                  <tr>
-                    <td style={S.totalTd} colSpan={4}>TOTAL ({drillItems.length} products)</td>
-                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(drillTotals.qty)}</td>
-                    <td style={S.totalTd}></td>
-                    <td style={{ ...S.totalTd, ...NUM }}>{drillTotals.value>0?fmt_inr(drillTotals.value):'—'}</td>
-                    <td style={S.totalTd}></td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
             {drillTotalPages>1&&(
