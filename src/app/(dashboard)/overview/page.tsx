@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
 import { fmt_inr, fmt_num, getDateRange, parseDate, DATA_START, normalizeCategory } from '@/lib/utils'
 import { useBranch } from '@/lib/branch-context'
+import { useSortable } from '@/lib/useSortable'
+import SortIndicator from '@/components/ui/SortIndicator'
 import { useDateRange } from '@/lib/date-range-context'
 import Link from 'next/link'
 import PageHeader from '@/components/layout/PageHeader'
@@ -47,6 +49,11 @@ export default function OverviewPage() {
   const [lowStock, setLowStock] = useState<any[]>([])
   const [topCustomers, setTopCustomers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  const lowStockGetValue = useCallback((item:any, key:string) => item[key], [])
+  const { sorted: sortedLowStock, sortKey: lowStockSortKey, sortDir: lowStockSortDir, toggleSort: toggleLowStockSort } = useSortable(lowStock, lowStockGetValue)
+  const topCustGetValue = useCallback((c:any, key:string) => key==='customer_name' ? c.customer_name : c[key], [])
+  const { sorted: sortedTopCustomers, sortKey: topCustSortKey, sortDir: topCustSortDir, toggleSort: toggleTopCustSort } = useSortable(topCustomers, topCustGetValue)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -175,9 +182,14 @@ export default function OverviewPage() {
               </div>
             </div>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-              <thead><tr>{['Product','Category','Stock','MRP'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead><tr>
+                <th onClick={()=>toggleLowStockSort('product_name')} style={{...S.th, cursor:'pointer'}}>Product<SortIndicator active={lowStockSortKey==='product_name'} dir={lowStockSortDir}/></th>
+                <th onClick={()=>toggleLowStockSort('category')} style={{...S.th, cursor:'pointer'}}>Category<SortIndicator active={lowStockSortKey==='category'} dir={lowStockSortDir}/></th>
+                <th onClick={()=>toggleLowStockSort('qty')} style={{...S.th, cursor:'pointer'}}>Stock<SortIndicator active={lowStockSortKey==='qty'} dir={lowStockSortDir}/></th>
+                <th onClick={()=>toggleLowStockSort('mrp')} style={{...S.th, cursor:'pointer'}}>MRP<SortIndicator active={lowStockSortKey==='mrp'} dir={lowStockSortDir}/></th>
+              </tr></thead>
               <tbody>
-                {lowStock.map((item,i)=>(
+                {sortedLowStock.map((item,i)=>(
                   <tr key={item.item_code} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                     <td style={{ ...S.td, fontWeight:600 }}>{item.product_name?.slice(0,30)}</td>
                     <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
@@ -205,10 +217,12 @@ export default function OverviewPage() {
             </div>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
               <thead><tr>
-                {['Customer','Visits','Spend'].map(h=><th key={h} style={S.th}>{h}</th>)}
+                <th onClick={()=>toggleTopCustSort('customer_name')} style={{...S.th, cursor:'pointer'}}>Customer<SortIndicator active={topCustSortKey==='customer_name'} dir={topCustSortDir}/></th>
+                <th onClick={()=>toggleTopCustSort('visit_count')} style={{...S.th, cursor:'pointer'}}>Visits<SortIndicator active={topCustSortKey==='visit_count'} dir={topCustSortDir}/></th>
+                <th onClick={()=>toggleTopCustSort('total_spend')} style={{...S.th, cursor:'pointer'}}>Spend<SortIndicator active={topCustSortKey==='total_spend'} dir={topCustSortDir}/></th>
               </tr></thead>
               <tbody>
-                {topCustomers.map((c,i)=>(
+                {sortedTopCustomers.map((c,i)=>(
                   <tr key={c.mobile_no||c.customer_name+i} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                     <td style={{ ...S.td, fontWeight:600 }}>
                       <Link href={`/customers?name=${encodeURIComponent(c.customer_name||'')}&mobile=${encodeURIComponent(c.mobile_no||'')}`}

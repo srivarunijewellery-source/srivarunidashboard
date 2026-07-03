@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchAllRows } from '@/lib/supabase'
 import { fmt_inr, getAllMonths, parseDate, DATA_START } from '@/lib/utils'
 import { useBranch } from '@/lib/branch-context'
+import { useSortable } from '@/lib/useSortable'
+import SortIndicator from '@/components/ui/SortIndicator'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
 import { format } from 'date-fns'
@@ -74,6 +76,18 @@ export default function ExpensesPage() {
 
   useEffect(() => { load() }, [load])
 
+  const rowsGetValue = useCallback((row:any, key:string) => {
+    if (key==='vendor') return row.vendor
+    if (key==='total') return row.total
+    if (key==='mom') {
+      const vals = months.map(m => row.months[m]||0)
+      const lastTwo = vals.slice(-2)
+      return lastTwo[0]>0 ? ((lastTwo[1]-lastTwo[0])/lastTwo[0]*100) : 0
+    }
+    return row.months[key] || 0 // month column key = the month label itself
+  }, [months])
+  const { sorted: sortedRows, sortKey: rowsSortKey, sortDir: rowsSortDir, toggleSort: toggleRowsSort } = useSortable(rows, rowsGetValue)
+
   return (
     <div style={{ minHeight: '100%', background: '#f5f0e8' }}>
       <PageHeader title="Expenses" subtitle="All time category breakdown and monthly trends" />
@@ -113,14 +127,14 @@ export default function ExpensesPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#3b0764' }}>
-                    <th style={{ ...S.th, background: '#3b0764', color: '#fff', position: 'sticky', left: 0, minWidth: 180, textAlign: 'left' }}>Vendor / Category</th>
-                    {months.map(m => <th key={m} style={{ ...S.th, background: '#3b0764', color: '#fff', textAlign: 'right', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>{m}</th>)}
-                    <th style={{ ...S.th, background: '#4c1d95', color: '#fff', textAlign: 'right' }}>Total</th>
-                    <th style={{ ...S.th, background: '#4c1d95', color: '#fff', textAlign: 'right' }}>MoM</th>
+                    <th onClick={()=>toggleRowsSort('vendor')} style={{ ...S.th, background: '#3b0764', color: '#fff', position: 'sticky', left: 0, minWidth: 180, textAlign: 'left', cursor:'pointer' }}>Vendor / Category<SortIndicator active={rowsSortKey==='vendor'} dir={rowsSortDir}/></th>
+                    {months.map(m => <th key={m} onClick={()=>toggleRowsSort(m)} style={{ ...S.th, background: '#3b0764', color: '#fff', textAlign: 'right', borderLeft: '1px solid rgba(255,255,255,0.1)', cursor:'pointer' }}>{m}<SortIndicator active={rowsSortKey===m} dir={rowsSortDir}/></th>)}
+                    <th onClick={()=>toggleRowsSort('total')} style={{ ...S.th, background: '#4c1d95', color: '#fff', textAlign: 'right', cursor:'pointer' }}>Total<SortIndicator active={rowsSortKey==='total'} dir={rowsSortDir}/></th>
+                    <th onClick={()=>toggleRowsSort('mom')} style={{ ...S.th, background: '#4c1d95', color: '#fff', textAlign: 'right', cursor:'pointer' }}>MoM<SortIndicator active={rowsSortKey==='mom'} dir={rowsSortDir}/></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row: any, i) => {
+                  {sortedRows.map((row: any, i) => {
                     const vals = months.map(m => row.months[m]||0)
                     const lastTwo = vals.slice(-2)
                     const mom = lastTwo[0]>0 ? ((lastTwo[1]-lastTwo[0])/lastTwo[0]*100) : 0

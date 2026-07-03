@@ -4,6 +4,8 @@ import { fetchAllRows } from '@/lib/supabase'
 import { useBranch } from '@/lib/branch-context'
 import { fmt_inr, fmt_num, getDateRange } from '@/lib/utils'
 import { useDateRange } from '@/lib/date-range-context'
+import { useSortable } from '@/lib/useSortable'
+import SortIndicator from '@/components/ui/SortIndicator'
 import PageHeader from '@/components/layout/PageHeader'
 import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
@@ -51,6 +53,12 @@ export default function TeamPage() {
   const totalSales = rows.reduce((s,r)=>s+r.total,0)
   const totalComm  = rows.reduce((s,r)=>s+r.total*(MONTHLY_RATE+HALF_RATE),0)
   const chartData  = rows.map(r=>({ name:r.name, sales:r.total, commission:r.total*(MONTHLY_RATE+HALF_RATE) }))
+
+  const rowsGetValue = useCallback((r:any, key:string) => {
+    if (key==='commission') return r.total*(MONTHLY_RATE+HALF_RATE)
+    return r[key]
+  }, [])
+  const { sorted: sortedRows, sortKey: rowsSortKey, sortDir: rowsSortDir, toggleSort: toggleRowsSort } = useSortable(rows, rowsGetValue)
 
   const Tip = ({ active, payload, label }: any) => {
     if (!active||!payload?.length) return null
@@ -110,16 +118,16 @@ export default function TeamPage() {
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
                   <tr style={{ background:'#3b0764' }}>
-                    <th style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'left' }}>Salesperson</th>
-                    <th style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'right' }}>Revenue</th>
-                    <th style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'right' }}>Qty</th>
+                    <th onClick={()=>toggleRowsSort('name')} style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'left', cursor:'pointer' }}>Salesperson<SortIndicator active={rowsSortKey==='name'} dir={rowsSortDir}/></th>
+                    <th onClick={()=>toggleRowsSort('total')} style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'right', cursor:'pointer' }}>Revenue<SortIndicator active={rowsSortKey==='total'} dir={rowsSortDir}/></th>
+                    <th onClick={()=>toggleRowsSort('qty')} style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'right', cursor:'pointer' }}>Qty<SortIndicator active={rowsSortKey==='qty'} dir={rowsSortDir}/></th>
                     <th style={{ ...S.th, background:'#3b0764', color:'#86efac', textAlign:'right' }}>Monthly (0.5%)</th>
                     <th style={{ ...S.th, background:'#3b0764', color:'#a78bfa', textAlign:'right' }}>Bonus (0.25%)</th>
-                    <th style={{ ...S.th, background:'#4c1d95', color:'#fff', textAlign:'right' }}>Total Comm.</th>
+                    <th onClick={()=>toggleRowsSort('commission')} style={{ ...S.th, background:'#4c1d95', color:'#fff', textAlign:'right', cursor:'pointer' }}>Total Comm.<SortIndicator active={rowsSortKey==='commission'} dir={rowsSortDir}/></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((sm,i)=>(
+                  {sortedRows.map((sm,i)=>(
                     <tr key={sm.name} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                       <td style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>{sm.name}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_inr(sm.total)}</td>
