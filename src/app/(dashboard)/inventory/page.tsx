@@ -51,20 +51,29 @@ export default function InventoryPage() {
   }, [])
   useEffect(() => { loadInventory() }, [loadInventory])
 
-  // MRP fallback: the ERP's product catalog export has MRP populated on
-  // only ~0.3% of products (a genuine gap in the source data, not
-  // something wrong on our side) — but every SALE captures the real MRP
-  // used at the register. For any item missing a catalog MRP, fall back to
-  // the MRP from its most recent sale, and mark it clearly as an estimate
-  // so it's never confused with a live catalog price.
+  // MRP fallback, three tiers — the ERP's product catalog export has MRP
+  // populated on only ~0.3% of products (a genuine gap in the source
+  // data, not something wrong on our side):
+  //   1. Catalog MRP (products.mrp) — used as-is when present.
+  //   2. This item's own most recent sale MRP — real, item-specific.
+  //   3. Average sale MRP across the item's category+brand — a rough
+  //      estimate for items that have never sold themselves, used only
+  //      when tiers 1-2 are unavailable, and always labeled distinctly.
   const [salesMrpMap, setSalesMrpMap] = useState<Record<string, number>>({})
+  const [categoryBrandAvgMrp, setCategoryBrandAvgMrp] = useState<Record<string, number>>({})
   useEffect(() => {
-    fetchAllRows('sales', 'item_code,mrp,date', q => q.gt('mrp', 0)).then(data => {
+    fetchAllRows('sales', 'item_code,category,brand,mrp,date', q => q.gt('mrp', 0)).then(data => {
       const latest: Record<string, { mrp: number; date: string }> = {}
+      const groupSums: Record<string, { sum: number; n: number }> = {}
       for (const r of data) {
         if (!latest[r.item_code] || r.date > latest[r.item_code].date) latest[r.item_code] = { mrp: r.mrp, date: r.date }
+        const groupKey = `${normalizeCategory(r.category)}||${r.brand || 'Unknown'}`
+        if (!groupSums[groupKey]) groupSums[groupKey] = { sum: 0, n: 0 }
+        groupSums[groupKey].sum += r.mrp
+        groupSums[groupKey].n += 1
       }
       setSalesMrpMap(Object.fromEntries(Object.entries(latest).map(([k, v]) => [k, v.mrp])))
+      setCategoryBrandAvgMrp(Object.fromEntries(Object.entries(groupSums).map(([k, v]) => [k, Math.round(v.sum / v.n)])))
     })
   }, [])
 
@@ -96,10 +105,17 @@ export default function InventoryPage() {
       if (!map[key].mrp && salesMrpMap[key]) {
         map[key].mrp = salesMrpMap[key]
         map[key].mrp_estimated = true
+      } else if (!map[key].mrp) {
+        const groupKey = `${map[key].category}||${map[key].brand || 'Unknown'}`
+        if (categoryBrandAvgMrp[groupKey]) {
+          map[key].mrp = categoryBrandAvgMrp[groupKey]
+          map[key].mrp_estimated = true
+          map[key].mrp_is_group_avg = true
+        }
       }
     }
     return Object.values(map)
-  }, [allInventory, salesMrpMap])
+  }, [allInventory, salesMrpMap, categoryBrandAvgMrp])
 
   const { rows: pivotRows, brands: pivotBrands } = useMemo(() => {
     const map: Record<string, any> = {}
@@ -304,7 +320,7 @@ export default function InventoryPage() {
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b'}}> ({item._batches} batches)</span>:''}</td>
-                      <td style={{ ...S.td, textAlign:'right' }}>{item.mrp>0?fmt_inr(item.mrp):'—'}{item.mrp_estimated?<span style={{fontSize:9,color:'#d97706'}}> (est.)</span>:''}</td>
+                      <td style={{ ...S.td, textAlign:'right' }}>{item.mrp>0?fmt_inr(item.mrp):'—'}{item.mrp_estimated?<span style={{fontSize:9,color:'#d97706'}}> {item.mrp_is_group_avg?'(cat. avg.)':'(est.)'}</span>:''}</td>
                       <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
                     </tr>
