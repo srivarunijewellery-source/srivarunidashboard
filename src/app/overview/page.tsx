@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
 import { fmt_inr, fmt_num, getDateRange, parseDate, DATA_START, type Grain } from '@/lib/utils'
+import { useBranch } from '@/lib/branch-context'
 import Link from 'next/link'
 import PageHeader from '@/components/layout/PageHeader'
 import DateNav from '@/components/ui/DateNav'
@@ -35,6 +36,7 @@ const Tip = ({ active, payload, label }: any) => {
 }
 
 export default function OverviewPage() {
+  const { selectedBranch } = useBranch()
   const [grain, setGrain] = useState<Grain>('month')
   const [offset, setOffset] = useState(0)
   const dateRange = getDateRange(grain, offset)
@@ -50,8 +52,11 @@ export default function OverviewPage() {
     setLoading(true)
     try {
       // Period-scoped sales
-      const sales = await fetchAllRows('sales', 'date,net_amount,profit,qty,category,voucher_no,mobile_no,customer_name', q =>
-        q.gte('date', dateRange.from).lte('date', dateRange.to))
+      const sales = await fetchAllRows('sales', 'date,net_amount,profit,qty,category,voucher_no,mobile_no,customer_name', q => {
+        let qq = q.gte('date', dateRange.from).lte('date', dateRange.to)
+        if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
+        return qq
+      })
 
       const totalRev = sales.reduce((s,r)=>s+(r.net_amount||0), 0)
       const totalPro = sales.reduce((s,r)=>s+(r.profit||0), 0)
@@ -91,14 +96,18 @@ export default function OverviewPage() {
       const now = new Date()
       const months: Record<string,{revenue:number,profit:number,qty:number}> = {}
       for (let i=7;i>=0;i--) { const d = subMonths(now,i); months[format(d,'MMM yy')] = {revenue:0,profit:0,qty:0} }
-      const trendSales = await fetchAllRows('sales', 'date,net_amount,profit,qty', q => q.gte('date', DATA_START))
+      const trendSales = await fetchAllRows('sales', 'date,net_amount,profit,qty', q => {
+        let qq = q.gte('date', DATA_START)
+        if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
+        return qq
+      })
       for (const r of trendSales) {
         const lbl = format(parseDate(r.date),'MMM yy')
         if (months[lbl]) { months[lbl].revenue+=r.net_amount||0; months[lbl].profit+=r.profit||0; months[lbl].qty+=r.qty||0 }
       }
       setTrendData(Object.entries(months).map(([label,v])=>({label,...v})))
     } finally { setLoading(false) }
-  }, [dateRange.from, dateRange.to])
+  }, [dateRange.from, dateRange.to, selectedBranch])
 
   useEffect(() => { load() }, [load])
 

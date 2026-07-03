@@ -1,12 +1,13 @@
 'use client'
 import HoverImage from '@/components/ui/HoverImage'
+import type { ProductHint } from '@/components/ui/ProductModal'
 
 interface ProductCardProps {
   item_code: string; product_name: string; category: string; brand: string
   image_url?: string; mrp: number; selling_price: number; landing_cost: number
   qty_sold: number; qty_remaining: number; revenue: number; profit: number
   vendor?: string; age_days?: number
-  onProductClick?: (itemCode: string) => void
+  onProductClick?: (itemCode: string, hint: ProductHint) => void
 }
 
 function fmt(v: number) { return v > 0 ? '₹' + Math.round(v).toLocaleString('en-IN') : '—' }
@@ -53,7 +54,7 @@ export default function ProductCard({ item_code, product_name, category, brand, 
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
         <div>
           <p style={{ fontSize: 10, color: '#6b5b7b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>{category}</p>
-          <p onClick={() => onProductClick?.(item_code)} style={{ fontSize: 13, fontWeight: 600, color: onProductClick ? '#3b0764' : '#1a0a2e', margin: '2px 0 0', lineHeight: 1.3, cursor: onProductClick ? 'pointer' : 'default', textDecoration: onProductClick ? 'underline' : 'none', textDecorationColor: '#c4b5fd',
+          <p onClick={() => onProductClick?.(item_code, { product_name, category, brand, mrp, landing_cost, image_url })} style={{ fontSize: 13, fontWeight: 600, color: onProductClick ? '#3b0764' : '#1a0a2e', margin: '2px 0 0', lineHeight: 1.3, cursor: onProductClick ? 'pointer' : 'default', textDecoration: onProductClick ? 'underline' : 'none', textDecorationColor: '#c4b5fd',
             overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{product_name}</p>
           <p style={{ fontSize: 11, color: '#6b5b7b', margin: '2px 0 0' }}>{brand}</p>
         </div>
@@ -96,7 +97,7 @@ export default function ProductCard({ item_code, product_name, category, brand, 
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
             <span style={{ color: '#6b5b7b' }}>Barcode</span>
-            <span onClick={() => onProductClick?.(item_code)} style={{ fontFamily: 'monospace', color: onProductClick ? '#3b0764' : '#6b5b7b', cursor: onProductClick ? 'pointer' : 'default', textDecoration: onProductClick ? 'underline' : 'none', textDecorationColor: '#c4b5fd' }}>{item_code}</span>
+            <span onClick={() => onProductClick?.(item_code, { product_name, category, brand, mrp, landing_cost, image_url })} style={{ fontFamily: 'monospace', color: onProductClick ? '#3b0764' : '#6b5b7b', cursor: onProductClick ? 'pointer' : 'default', textDecoration: onProductClick ? 'underline' : 'none', textDecorationColor: '#c4b5fd' }}>{item_code}</span>
           </div>
         </div>
       </div>

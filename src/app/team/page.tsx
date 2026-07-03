@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { fetchAllRows } from '@/lib/supabase'
+import { useBranch } from '@/lib/branch-context'
 import { fmt_inr, fmt_num, getDateRange, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import DateNav from '@/components/ui/DateNav'
@@ -16,6 +17,7 @@ const S = {
 }
 
 export default function TeamPage() {
+  const { selectedBranch } = useBranch()
   const [grain, setGrain] = useState<Grain>('month')
   const [offset, setOffset] = useState(0)
   const dateRange = getDateRange(grain, offset)
@@ -27,8 +29,11 @@ export default function TeamPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await fetchAllRows('sales', 'sales_man,net_amount,qty', q =>
-        q.gte('date',dateRange.from).lte('date',dateRange.to))
+      const data = await fetchAllRows('sales', 'sales_man,net_amount,qty', q => {
+        let qq = q.gte('date',dateRange.from).lte('date',dateRange.to)
+        if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
+        return qq
+      })
 
       const map: Record<string,any> = {}
       for (const row of data) {
@@ -39,7 +44,7 @@ export default function TeamPage() {
       }
       setRows(Object.values(map).sort((a,b)=>b.total-a.total))
     } finally { setLoading(false) }
-  }, [dateRange.from, dateRange.to])
+  }, [dateRange.from, dateRange.to, selectedBranch])
 
   useEffect(() => { load() }, [load])
 
@@ -108,7 +113,9 @@ export default function TeamPage() {
                     <th style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'left' }}>Salesperson</th>
                     <th style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'right' }}>Revenue</th>
                     <th style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'right' }}>Qty</th>
-                    <th style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'right' }}>Commission</th>
+                    <th style={{ ...S.th, background:'#3b0764', color:'#86efac', textAlign:'right' }}>Monthly (0.5%)</th>
+                    <th style={{ ...S.th, background:'#3b0764', color:'#a78bfa', textAlign:'right' }}>Bonus (0.25%)</th>
+                    <th style={{ ...S.th, background:'#4c1d95', color:'#fff', textAlign:'right' }}>Total Comm.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -117,16 +124,20 @@ export default function TeamPage() {
                       <td style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>{sm.name}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_inr(sm.total)}</td>
                       <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{fmt_num(sm.qty)}</td>
+                      <td style={{ ...S.td, textAlign:'right', color:'#059669', fontWeight:600 }}>{fmt_inr(sm.total*MONTHLY_RATE)}</td>
+                      <td style={{ ...S.td, textAlign:'right', color:'#7c3aed', fontWeight:600 }}>{fmt_inr(sm.total*HALF_RATE)}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#059669' }}>{fmt_inr(sm.total*(MONTHLY_RATE+HALF_RATE))}</td>
                     </tr>
                   ))}
                   {rows.length===0&&(
-                    <tr><td colSpan={4} style={{ ...S.td, textAlign:'center', color:'#6b5b7b', padding:24 }}>No sales this period</td></tr>
+                    <tr><td colSpan={6} style={{ ...S.td, textAlign:'center', color:'#6b5b7b', padding:24 }}>No sales this period</td></tr>
                   )}
                   <tr style={{ background:'#f5f0ff', borderTop:'2px solid #7c3aed' }}>
                     <td style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>TOTAL</td>
                     <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_inr(totalSales)}</td>
                     <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#6b5b7b' }}>{fmt_num(rows.reduce((s,r)=>s+r.qty,0))}</td>
+                    <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#059669' }}>{fmt_inr(rows.reduce((s,r)=>s+r.total*MONTHLY_RATE,0))}</td>
+                    <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#7c3aed' }}>{fmt_inr(rows.reduce((s,r)=>s+r.total*HALF_RATE,0))}</td>
                     <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#059669' }}>{fmt_inr(totalComm)}</td>
                   </tr>
                 </tbody>

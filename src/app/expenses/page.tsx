@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { fetchAllRows } from '@/lib/supabase'
+import { useBranch } from '@/lib/branch-context'
 import { fmt_inr, getAllMonths, getDateRange, parseDate, DATA_START, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import DateNav from '@/components/ui/DateNav'
@@ -25,6 +26,7 @@ const Tip = ({ active, payload, label }: any) => {
 }
 
 export default function ExpensesPage() {
+  const { selectedBranch } = useBranch()
   const [grain, setGrain] = useState<Grain>('month')
   const [offset, setOffset] = useState(0)
   const dateRange = getDateRange(grain, offset)
@@ -38,8 +40,11 @@ export default function ExpensesPage() {
     setLoading(true)
     try {
       // Period-scoped vendor breakdown
-      const data = await fetchAllRows('expenses', 'date,vendor_name,gross_total', q =>
-        q.gte('date', dateRange.from).lte('date', dateRange.to))
+      const data = await fetchAllRows('expenses', 'date,vendor_name,gross_total', q => {
+        let qq = q.gte('date', dateRange.from).lte('date', dateRange.to)
+        if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
+        return qq
+      })
 
       const catMap: Record<string, any> = {}
       for (const row of data) {
@@ -57,14 +62,18 @@ export default function ExpensesPage() {
       const monthTotals: Record<string, number> = {}
       const months8: string[] = []
       for (let i=7;i>=0;i--) { const d = new Date(now.getFullYear(), now.getMonth()-i, 1); const lbl = format(d,'MMM yy'); months8.push(lbl); monthTotals[lbl]=0 }
-      const trendData8 = await fetchAllRows('expenses', 'date,gross_total', q => q.gte('date', DATA_START))
+      const trendData8 = await fetchAllRows('expenses', 'date,gross_total', q => {
+        let qq = q.gte('date', DATA_START)
+        if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
+        return qq
+      })
       for (const r of trendData8) {
         const lbl = format(parseDate(r.date),'MMM yy')
         if (monthTotals[lbl]!==undefined) monthTotals[lbl]+=r.gross_total||0
       }
       setChartData(months8.map(l=>({ label:l, total: monthTotals[l]||0 })).filter(p=>p.total>0))
     } finally { setLoading(false) }
-  }, [dateRange.from, dateRange.to])
+  }, [dateRange.from, dateRange.to, selectedBranch])
 
   useEffect(() => { load() }, [load])
 

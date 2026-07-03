@@ -7,7 +7,8 @@ import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
 import DateNav from '@/components/ui/DateNav'
 import OrderModal from '@/components/ui/OrderModal'
-import ProductModal from '@/components/ui/ProductModal'
+import ProductModal, { type ProductHint } from '@/components/ui/ProductModal'
+import { useBranch } from '@/lib/branch-context'
 import { Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -38,6 +39,7 @@ function OrderLink({ voucherNo, onClick }: { voucherNo: string; onClick: () => v
 }
 
 function CustomersInner() {
+  const { selectedBranch } = useBranch()
   const searchParams = useSearchParams()
   const deepDiveRef = useRef<HTMLDivElement>(null)
 
@@ -61,6 +63,7 @@ function CustomersInner() {
   const [iOffset, setIOffset] = useState(0)
   const iRange = getDateRange(iGrain, iOffset)
   const [productItemCode, setProductItemCode] = useState<string|null>(null)
+  const [productHint, setProductHint] = useState<ProductHint|undefined>(undefined)
 
   // Load insights — scoped to the selected period (all customers who
   // visited within iRange, not an all-time view)
@@ -68,8 +71,11 @@ function CustomersInner() {
     const load = async () => {
       setInsightsLoading(true)
       try {
-        const sales = await fetchAllRows('sales', 'voucher_no,customer_name,mobile_no,net_amount,profit,qty,date', q =>
-          q.gte('date', iRange.from).lte('date', iRange.to))
+        const sales = await fetchAllRows('sales', 'voucher_no,customer_name,mobile_no,net_amount,profit,qty,date', q => {
+          let qq = q.gte('date', iRange.from).lte('date', iRange.to)
+          if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
+          return qq
+        })
         if (!sales.length) {
           setInsightMetrics({ total:0, returning:0, single:0, repeat_pct:0, avg_spend:0, top_spend:0 })
           setFreqData([]); setTopSpend([]); setTopFreq([])
@@ -111,7 +117,7 @@ function CustomersInner() {
       } finally { setInsightsLoading(false) }
     }
     load()
-  }, [iRange.from, iRange.to])
+  }, [iRange.from, iRange.to, selectedBranch])
 
   // Customer search suggestions
   useEffect(() => {
@@ -386,8 +392,8 @@ function CustomersInner() {
                             <tr key={`${l.voucher_no}-${l.item_code}-${i}`} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{format(parseDate(l.date),'dd MMM yy')}</td>
                               <td style={S.td}><OrderLink voucherNo={l.voucher_no} onClick={()=>setOrderVoucher(l.voucher_no)}/></td>
-                              <td onClick={()=>setProductItemCode(l.item_code)} style={{ ...S.td, fontFamily:'monospace', color:'#3b0764', fontSize:10, cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.item_code}</td>
-                              <td onClick={()=>setProductItemCode(l.item_code)} style={{ ...S.td, fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.product_name}</td>
+                              <td onClick={()=>{setProductItemCode(l.item_code);setProductHint({product_name:l.product_name,category:l.category,brand:l.brand,mrp:l.mrp,landing_cost:l.landing_cost})}} style={{ ...S.td, fontFamily:'monospace', color:'#3b0764', fontSize:10, cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.item_code}</td>
+                              <td onClick={()=>{setProductItemCode(l.item_code);setProductHint({product_name:l.product_name,category:l.category,brand:l.brand,mrp:l.mrp,landing_cost:l.landing_cost})}} style={{ ...S.td, fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.product_name}</td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{l.category}</td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{l.brand}</td>
                               <td style={{ ...S.td, textAlign:'right' }}>{l.qty}</td>
@@ -408,7 +414,7 @@ function CustomersInner() {
       </div>
 
       {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)} />}
-      {productItemCode && <ProductModal itemCode={productItemCode} onClose={()=>setProductItemCode(null)} />}
+      {productItemCode && <ProductModal itemCode={productItemCode} hint={productHint} onClose={()=>{setProductItemCode(null);setProductHint(undefined)}} />}
     </div>
   )
 }

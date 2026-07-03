@@ -5,8 +5,8 @@ import { fetchAllRows } from '@/lib/supabase'
 import { fmt_inr } from '@/lib/utils'
 import { X } from 'lucide-react'
 
-export default function CustomersListModal({ from, to, label, onClose }: {
-  from: string; to: string; label: string; onClose: () => void
+export default function CustomersListModal({ from, to, label, branchId, onClose }: {
+  from: string; to: string; label: string; branchId?: string | null; onClose: () => void
 }) {
   const router = useRouter()
   const [customers, setCustomers] = useState<any[]>([])
@@ -15,7 +15,11 @@ export default function CustomersListModal({ from, to, label, onClose }: {
   useEffect(() => {
     let active = true
     setLoading(true)
-    fetchAllRows('sales', 'voucher_no,customer_name,mobile_no,net_amount', q => q.gte('date', from).lte('date', to))
+    fetchAllRows('sales', 'voucher_no,customer_name,mobile_no,net_amount', q => {
+      let qq = q.gte('date', from).lte('date', to)
+      if (branchId) qq = qq.eq('branch_id', branchId)
+      return qq
+    })
       .then(data => {
         if (!active) return
         const map: Record<string, any> = {}
@@ -30,7 +34,7 @@ export default function CustomersListModal({ from, to, label, onClose }: {
         setLoading(false)
       })
     return () => { active = false }
-  }, [from, to])
+  }, [from, to, branchId])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }

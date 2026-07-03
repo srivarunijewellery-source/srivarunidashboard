@@ -5,8 +5,8 @@ import { fmt_inr, fmt_num, parseDate } from '@/lib/utils'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
 
-export default function BillsListModal({ from, to, label, onClose, onOpenOrder }: {
-  from: string; to: string; label: string; onClose: () => void; onOpenOrder: (voucherNo: string) => void
+export default function BillsListModal({ from, to, label, branchId, onClose, onOpenOrder }: {
+  from: string; to: string; label: string; branchId?: string | null; onClose: () => void; onOpenOrder: (voucherNo: string) => void
 }) {
   const [bills, setBills] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -14,7 +14,11 @@ export default function BillsListModal({ from, to, label, onClose, onOpenOrder }
   useEffect(() => {
     let active = true
     setLoading(true)
-    fetchAllRows('sales', 'voucher_no,date,customer_name,mobile_no,qty,net_amount', q => q.gte('date', from).lte('date', to))
+    fetchAllRows('sales', 'voucher_no,date,customer_name,mobile_no,qty,net_amount', q => {
+      let qq = q.gte('date', from).lte('date', to)
+      if (branchId) qq = qq.eq('branch_id', branchId)
+      return qq
+    })
       .then(data => {
         if (!active) return
         const map: Record<string, any> = {}
@@ -28,7 +32,7 @@ export default function BillsListModal({ from, to, label, onClose, onOpenOrder }
         setLoading(false)
       })
     return () => { active = false }
-  }, [from, to])
+  }, [from, to, branchId])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }

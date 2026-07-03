@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Package, TrendingUp, Receipt, Users, BarChart2 } from 'lucide-react'
+import BranchSelector from './BranchSelector'
 
 const nav = [
   { href: '/overview',   label: 'Overview',    icon: LayoutDashboard },
@@ -20,6 +21,7 @@ export default function Sidebar() {
         <p className="font-display" style={{ color:'#fff', fontSize:18, lineHeight:1.2, margin:0 }}>Sri Varuni</p>
         <p style={{ color:'#c4b5fd', fontSize:10, marginTop:2, letterSpacing:2, textTransform:'uppercase' }}>Fashion Jewellery</p>
       </div>
+      <BranchSelector />
       <nav style={{ flex:1, padding:'12px 10px', display:'flex', flexDirection:'column', gap:2 }}>
         {nav.map(({ href, label, icon: Icon }) => {
           const active = path === href || (href !== '/overview' && path.startsWith(href))

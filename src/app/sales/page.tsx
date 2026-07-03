@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
+import { useBranch } from '@/lib/branch-context'
 import { fmt_inr, fmt_num, getPeriods, getAllMonths, getDateRange, DATA_START, parseDate, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import GrainSelector from '@/components/ui/GrainSelector'
@@ -8,7 +9,7 @@ import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import ProductCard from '@/components/inventory/ProductCard'
 import OrderModal from '@/components/ui/OrderModal'
-import ProductModal from '@/components/ui/ProductModal'
+import ProductModal, { type ProductHint } from '@/components/ui/ProductModal'
 import BillsListModal from '@/components/ui/BillsListModal'
 import CustomersListModal from '@/components/ui/CustomersListModal'
 import { format, startOfWeek } from 'date-fns'
@@ -37,7 +38,8 @@ const Tip = ({ active, payload, label }: any) => {
 }
 
 export default function SalesPage() {
-  const [view, setView] = useState<'summary' | 'details'>('summary')
+  const { selectedBranch } = useBranch()
+  const [view, setView] = useState<'summary' | 'details'>('details')
 
   // ── Summary state ────────────────────────────────────────────────────────
   const [grain, setGrain] = useState<Grain>('month')
@@ -49,8 +51,11 @@ export default function SalesPage() {
     setLoading(true)
     try {
       const periods = grain === 'month' ? getAllMonths() : getPeriods(grain, N[grain])
-      const data = await fetchAllRows('sales', 'date,net_amount,profit,qty', q =>
-        q.gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0]))
+      const data = await fetchAllRows('sales', 'date,net_amount,profit,qty', q => {
+        let qq = q.gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0])
+        if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
+        return qq
+      })
 
       const buckets: Record<string, any> = {}
       periods.forEach(p => { buckets[p.label] = { label: p.label, revenue: 0, profit: 0, qty: 0 } })
@@ -74,7 +79,7 @@ export default function SalesPage() {
       setChartData(pts)
       setMetrics({ revenue: pts.reduce((s,p)=>s+p.revenue,0), profit: pts.reduce((s,p)=>s+p.profit,0), qty: pts.reduce((s,p)=>s+p.qty,0) })
     } finally { setLoading(false) }
-  }, [grain])
+  }, [grain, selectedBranch])
 
   useEffect(() => { if (view==='summary') loadChart() }, [loadChart, view])
 
@@ -95,8 +100,11 @@ export default function SalesPage() {
   const loadDetails = useCallback(async () => {
     setDLoading(true); setPage(0)
     try {
-      const sales = await fetchAllRows('sales', 'item_code,product_name,category,brand,selling_price,landing_cost,mrp,qty,net_amount,profit,voucher_no,mobile_no,customer_name', q =>
-        q.gte('date', dateRange.from).lte('date', dateRange.to))
+      const sales = await fetchAllRows('sales', 'item_code,product_name,category,brand,selling_price,landing_cost,mrp,qty,net_amount,profit,voucher_no,mobile_no,customer_name', q => {
+        let qq = q.gte('date', dateRange.from).lte('date', dateRange.to)
+        if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
+        return qq
+      })
       if (!sales.length) { setSoldItems([]); setDMetrics({revenue:0,profit:0,qty:0,products:0,customers:0,bills:0}); return }
 
       const agg: Record<string,any> = {}
@@ -138,7 +146,7 @@ export default function SalesPage() {
         bills: billSet.size,
       })
     } finally { setDLoading(false) }
-  }, [dateRange.from, dateRange.to])
+  }, [dateRange.from, dateRange.to, selectedBranch])
 
   useEffect(() => { if (view==='details') loadDetails() }, [view, loadDetails])
 
@@ -149,6 +157,7 @@ export default function SalesPage() {
   // ── Modals ───────────────────────────────────────────────────────────────
   const [orderVoucher, setOrderVoucher] = useState<string|null>(null)
   const [productItemCode, setProductItemCode] = useState<string|null>(null)
+  const [productHint, setProductHint] = useState<ProductHint|undefined>(undefined)
   const [showBills, setShowBills] = useState(false)
   const [showCustomers, setShowCustomers] = useState(false)
 
@@ -228,7 +237,7 @@ export default function SalesPage() {
             ) : (
               <>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
-                  {pageItems.map(item=><ProductCard key={item.item_code} {...item} onProductClick={setProductItemCode}/>)}
+                  {pageItems.map(item=><ProductCard key={item.item_code} {...item} onProductClick={(code,hint)=>{setProductItemCode(code);setProductHint(hint)}}/>)}
                 </div>
                 {totalPages>1&&(
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, paddingTop:8 }}>
@@ -244,9 +253,9 @@ export default function SalesPage() {
       </div>
 
       {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)} />}
-      {productItemCode && <ProductModal itemCode={productItemCode} onClose={()=>setProductItemCode(null)} />}
-      {showBills && <BillsListModal from={dateRange.from} to={dateRange.to} label={dateRange.label} onClose={()=>setShowBills(false)} onOpenOrder={(v)=>{setShowBills(false);setOrderVoucher(v)}} />}
-      {showCustomers && <CustomersListModal from={dateRange.from} to={dateRange.to} label={dateRange.label} onClose={()=>setShowCustomers(false)} />}
+      {productItemCode && <ProductModal itemCode={productItemCode} hint={productHint} onClose={()=>{setProductItemCode(null);setProductHint(undefined)}} />}
+      {showBills && <BillsListModal from={dateRange.from} to={dateRange.to} label={dateRange.label} branchId={selectedBranch} onClose={()=>setShowBills(false)} onOpenOrder={(v)=>{setShowBills(false);setOrderVoucher(v)}} />}
+      {showCustomers && <CustomersListModal from={dateRange.from} to={dateRange.to} label={dateRange.label} branchId={selectedBranch} onClose={()=>setShowCustomers(false)} />}
     </div>
   )
 }
