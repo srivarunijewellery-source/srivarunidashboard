@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import { fetchAllRows } from '@/lib/supabase'
 import { fmt_inr, fmt_num, parseDate } from '@/lib/utils'
+import { useSortable } from '@/lib/useSortable'
+import SortIndicator from './SortIndicator'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
 
@@ -40,6 +42,8 @@ export default function BillsListModal({ from, to, label, branchId, onClose, onO
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const billsGetValue = (b:any, key:string) => b[key]
+  const { sorted: sortedBills, sortKey, sortDir, toggleSort } = useSortable(bills, billsGetValue)
   const totalAmount = bills.reduce((s, b) => s + b.amount, 0)
 
   return (
@@ -57,11 +61,11 @@ export default function BillsListModal({ from, to, label, branchId, onClose, onO
             <div style={{ padding: 40, textAlign: 'center', color: '#6b5b7b' }}>No bills in this period.</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead><tr>{['Date', 'Bill No', 'Customer', 'Phone', 'Items', 'Amount'].map(h =>
-                <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#6b5b7b', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f5f0e8', borderBottom: '1px solid #e8d5b7', textAlign: (h === 'Items' || h === 'Amount') ? 'right' : 'left', position: 'sticky', top: 0 }}>{h}</th>)}
+              <thead><tr>{[['Date','date'],['Bill No','voucher_no'],['Customer','customer_name'],['Phone','mobile_no'],['Items','items'],['Amount','amount']].map(([h,key]) =>
+                <th key={h} onClick={()=>toggleSort(key)} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#6b5b7b', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f5f0e8', borderBottom: '1px solid #e8d5b7', textAlign: (h === 'Items' || h === 'Amount') ? 'right' : 'left', position: 'sticky', top: 0, cursor:'pointer' }}>{h}<SortIndicator active={sortKey===key} dir={sortDir}/></th>)}
               </tr></thead>
               <tbody>
-                {bills.map((b, i) => (
+                {sortedBills.map((b, i) => (
                   <tr key={b.voucher_no} style={{ background: i % 2 === 0 ? '#fff' : '#faf8ff' }}>
                     <td style={{ padding: '8px 12px', borderBottom: '1px solid #f0e8d8' }}>{format(parseDate(b.date), 'dd MMM yyyy')}</td>
                     <td style={{ padding: '8px 12px', borderBottom: '1px solid #f0e8d8' }}>

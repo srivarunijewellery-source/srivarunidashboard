@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { fetchAllRows } from '@/lib/supabase'
 import { fmt_inr } from '@/lib/utils'
+import { useSortable } from '@/lib/useSortable'
+import SortIndicator from './SortIndicator'
 import { X } from 'lucide-react'
 
 export default function CustomersListModal({ from, to, label, branchId, onClose }: {
@@ -42,6 +44,9 @@ export default function CustomersListModal({ from, to, label, branchId, onClose 
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const custGetValue = (c:any, key:string) => c[key]
+  const { sorted: sortedCustomers, sortKey, sortDir, toggleSort } = useSortable(customers, custGetValue)
+
   const goToCustomer = (name: string, mobile?: string) => {
     router.push(`/customers?name=${encodeURIComponent(name)}&mobile=${encodeURIComponent(mobile || '')}`)
   }
@@ -61,11 +66,11 @@ export default function CustomersListModal({ from, to, label, branchId, onClose 
             <div style={{ padding: 40, textAlign: 'center', color: '#6b5b7b' }}>No customers in this period.</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead><tr>{['Customer', 'Phone', 'Visits', 'Spend'].map(h =>
-                <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#6b5b7b', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f5f0e8', borderBottom: '1px solid #e8d5b7', textAlign: (h === 'Visits' || h === 'Spend') ? 'right' : 'left', position: 'sticky', top: 0 }}>{h}</th>)}
+              <thead><tr>{[['Customer','name'],['Phone','mobile'],['Visits','visits'],['Spend','spend']].map(([h,key]) =>
+                <th key={h} onClick={()=>toggleSort(key)} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 600, color: '#6b5b7b', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f5f0e8', borderBottom: '1px solid #e8d5b7', textAlign: (h === 'Visits' || h === 'Spend') ? 'right' : 'left', position: 'sticky', top: 0, cursor:'pointer' }}>{h}<SortIndicator active={sortKey===key} dir={sortDir}/></th>)}
               </tr></thead>
               <tbody>
-                {customers.map((c, i) => (
+                {sortedCustomers.map((c, i) => (
                   <tr key={(c.mobile || c.name) + i} style={{ background: i % 2 === 0 ? '#fff' : '#faf8ff' }}>
                     <td style={{ padding: '8px 12px', borderBottom: '1px solid #f0e8d8' }}>
                       <button onClick={() => goToCustomer(c.name, c.mobile)} style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 600, color: '#3b0764', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#c4b5fd' }}>{c.name}</button>
