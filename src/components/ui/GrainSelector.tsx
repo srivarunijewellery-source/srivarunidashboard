@@ -6,6 +6,7 @@ const grains: { value: Grain; label: string }[] = [
   { value: 'week', label: 'Week' },
   { value: 'month', label: 'Month' },
   { value: 'quarter', label: 'Quarter' },
+  { value: 'year', label: 'Year' },
 ]
 
 export default function GrainSelector({ value, onChange, options }: { value: Grain; onChange: (g: Grain) => void; options?: Grain[] }) {

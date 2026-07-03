@@ -1,26 +1,27 @@
 'use client'
-import { useState } from 'react'
+import HoverImage from '@/components/ui/HoverImage'
 
 interface ProductCardProps {
   item_code: string; product_name: string; category: string; brand: string
   image_url?: string; mrp: number; selling_price: number; landing_cost: number
   qty_sold: number; qty_remaining: number; revenue: number; profit: number
   vendor?: string; age_days?: number
+  onProductClick?: (itemCode: string) => void
 }
 
 function fmt(v: number) { return v > 0 ? '₹' + Math.round(v).toLocaleString('en-IN') : '—' }
 function pct(v: number) { return v > 0 ? v.toFixed(1) + '%' : '—' }
 
 function ageBadge(days: number) {
-  if (days <= 30)  return { label: `${days}d`, bg: '#d1fae5', color: '#065f46' }
-  if (days <= 60)  return { label: `${days}d`, bg: '#fef3c7', color: '#92400e' }
-  if (days <= 90)  return { label: `${days}d`, bg: '#fed7aa', color: '#9a3412' }
-  return { label: `${days}d`, bg: '#fee2e2', color: '#991b1b' }
+  const d = Math.max(0, days)
+  if (d <= 30)  return { label: `${d}d`, bg: '#d1fae5', color: '#065f46' }
+  if (d <= 60)  return { label: `${d}d`, bg: '#fef3c7', color: '#92400e' }
+  if (d <= 90)  return { label: `${d}d`, bg: '#fed7aa', color: '#9a3412' }
+  return { label: `${d}d`, bg: '#fee2e2', color: '#991b1b' }
 }
 
 export default function ProductCard({ item_code, product_name, category, brand, image_url,
-  mrp, selling_price, landing_cost, qty_sold, qty_remaining, revenue, profit, vendor, age_days }: ProductCardProps) {
-  const [err, setErr] = useState(false)
+  mrp, selling_price, landing_cost, qty_sold, qty_remaining, revenue, profit, vendor, age_days, onProductClick }: ProductCardProps) {
   const margin = selling_price > 0 ? (selling_price - landing_cost) / selling_price * 100 : 0
   const age = age_days !== undefined ? ageBadge(age_days) : null
   const marginColor = margin >= 40 ? '#059669' : margin >= 25 ? '#d97706' : '#dc2626'
@@ -34,13 +35,8 @@ export default function ProductCard({ item_code, product_name, category, brand, 
     }}>
       {/* Image */}
       <div className="product-img-wrap" style={{ position: 'relative', aspectRatio: '1', background: '#f5f0e8' }}>
-        {image_url && !err ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={image_url} alt={product_name} onError={() => setErr(true)}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>💍</div>
-        )}
+        <HoverImage src={image_url} alt={product_name} emoji="💍"
+          style={{ width: '100%', height: '100%' }} wrapperStyle={{ width: '100%', height: '100%' }} previewSize={320} />
         {age && (
           <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 10, fontWeight: 700,
             padding: '2px 8px', borderRadius: 20, background: age.bg, color: age.color }}>
@@ -57,7 +53,7 @@ export default function ProductCard({ item_code, product_name, category, brand, 
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
         <div>
           <p style={{ fontSize: 10, color: '#6b5b7b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>{category}</p>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#1a0a2e', margin: '2px 0 0', lineHeight: 1.3,
+          <p onClick={() => onProductClick?.(item_code)} style={{ fontSize: 13, fontWeight: 600, color: onProductClick ? '#3b0764' : '#1a0a2e', margin: '2px 0 0', lineHeight: 1.3, cursor: onProductClick ? 'pointer' : 'default', textDecoration: onProductClick ? 'underline' : 'none', textDecorationColor: '#c4b5fd',
             overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{product_name}</p>
           <p style={{ fontSize: 11, color: '#6b5b7b', margin: '2px 0 0' }}>{brand}</p>
         </div>
@@ -100,7 +96,7 @@ export default function ProductCard({ item_code, product_name, category, brand, 
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
             <span style={{ color: '#6b5b7b' }}>Barcode</span>
-            <span style={{ fontFamily: 'monospace', color: '#6b5b7b' }}>{item_code}</span>
+            <span onClick={() => onProductClick?.(item_code)} style={{ fontFamily: 'monospace', color: onProductClick ? '#3b0764' : '#6b5b7b', cursor: onProductClick ? 'pointer' : 'default', textDecoration: onProductClick ? 'underline' : 'none', textDecorationColor: '#c4b5fd' }}>{item_code}</span>
           </div>
         </div>
       </div>

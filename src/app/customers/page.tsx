@@ -2,10 +2,12 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase, fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, fmt_pct, DATA_START, parseDate } from '@/lib/utils'
+import { fmt_inr, fmt_num, fmt_pct, DATA_START, parseDate, getDateRange, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
+import DateNav from '@/components/ui/DateNav'
 import OrderModal from '@/components/ui/OrderModal'
+import ProductModal from '@/components/ui/ProductModal'
 import { Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -55,22 +57,44 @@ function CustomersInner() {
   const [topFreq, setTopFreq] = useState<any[]>([])
   const [insightMetrics, setInsightMetrics] = useState({ total:0, returning:0, single:0, repeat_pct:0, avg_spend:0, top_spend:0 })
   const [insightsLoading, setInsightsLoading] = useState(false)
+  const [iGrain, setIGrain] = useState<Grain>('month')
+  const [iOffset, setIOffset] = useState(0)
+  const iRange = getDateRange(iGrain, iOffset)
+  const [productItemCode, setProductItemCode] = useState<string|null>(null)
 
-  // Load insights
+  // Load insights — scoped to the selected period (all customers who
+  // visited within iRange, not an all-time view)
   useEffect(() => {
     const load = async () => {
       setInsightsLoading(true)
       try {
-        const cust = await fetchAllRows('customer_summary', '*', q =>
-          q.order('total_spend',{ascending:false}))
-        if (!cust.length) return
+        const sales = await fetchAllRows('sales', 'voucher_no,customer_name,mobile_no,net_amount,profit,qty,date', q =>
+          q.gte('date', iRange.from).lte('date', iRange.to))
+        if (!sales.length) {
+          setInsightMetrics({ total:0, returning:0, single:0, repeat_pct:0, avg_spend:0, top_spend:0 })
+          setFreqData([]); setTopSpend([]); setTopFreq([])
+          return
+        }
+
+        const map: Record<string, any> = {}
+        for (const r of sales) {
+          const key = r.mobile_no || r.customer_name || 'unknown'
+          if (!map[key]) map[key] = { customer_name: r.customer_name||'Walk-in', mobile_no: r.mobile_no, vouchers: new Set<string>(), total_spend:0, total_profit:0, total_units:0, first_visit: r.date, last_visit: r.date }
+          map[key].vouchers.add(r.voucher_no)
+          map[key].total_spend += r.net_amount||0
+          map[key].total_profit += r.profit||0
+          map[key].total_units += r.qty||0
+          if (r.date < map[key].first_visit) map[key].first_visit = r.date
+          if (r.date > map[key].last_visit) map[key].last_visit = r.date
+        }
+        const cust = Object.values(map).map((c:any)=>({ ...c, visit_count: c.vouchers.size })).sort((a:any,b:any)=>b.total_spend-a.total_spend)
 
         const total = cust.length
-        const returning = cust.filter(c=>c.visit_count>1).length
-        const avgSpend = cust.reduce((s,c)=>s+(c.total_spend||0),0)/total
+        const returning = cust.filter((c:any)=>c.visit_count>1).length
+        const avgSpend = cust.reduce((s:number,c:any)=>s+(c.total_spend||0),0)/total
         const topS = cust[0]?.total_spend||0
 
-        setInsightMetrics({ total, returning, single:total-returning, repeat_pct:returning/total*100, avg_spend:avgSpend, top_spend:topS })
+        setInsightMetrics({ total, returning, single:total-returning, repeat_pct:total?returning/total*100:0, avg_spend:avgSpend, top_spend:topS })
 
         const freqMap: Record<string,number> = { '1 visit':0, '2 visits':0, '3-5 visits':0, '6-10 visits':0, '10+ visits':0 }
         for (const c of cust) {
@@ -80,14 +104,14 @@ function CustomersInner() {
           else if (c.visit_count<=10) freqMap['6-10 visits']++
           else freqMap['10+ visits']++
         }
-        setFreqData(Object.entries(freqMap).map(([name,count])=>({name,count,pct:+(count/total*100).toFixed(1)})))
+        setFreqData(Object.entries(freqMap).map(([name,count])=>({name,count,pct:total?+(count/total*100).toFixed(1):0})))
         setTopSpend(cust.slice(0,10))
-        const byFreq = [...cust].sort((a,b)=>b.visit_count-a.visit_count).slice(0,10)
+        const byFreq = [...cust].sort((a:any,b:any)=>b.visit_count-a.visit_count).slice(0,10)
         setTopFreq(byFreq)
       } finally { setInsightsLoading(false) }
     }
     load()
-  }, [])
+  }, [iRange.from, iRange.to])
 
   // Customer search suggestions
   useEffect(() => {
@@ -165,6 +189,7 @@ function CustomersInner() {
       <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:20 }}>
 
         {/* ═══════════ INSIGHTS ═══════════ */}
+        <DateNav grain={iGrain} onGrainChange={setIGrain} offset={iOffset} onOffsetChange={setIOffset} label={iRange.label} />
         <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:14 }}>
           <MetricCard label="Total Customers" value={fmt_num(insightMetrics.total)} sub="With phone" accent="purple"/>
           <MetricCard label="Single Visit" value={fmt_num(insightMetrics.single)} sub={`${(100-insightMetrics.repeat_pct).toFixed(1)}% of total`} accent="beige"/>
@@ -361,8 +386,8 @@ function CustomersInner() {
                             <tr key={`${l.voucher_no}-${l.item_code}-${i}`} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{format(parseDate(l.date),'dd MMM yy')}</td>
                               <td style={S.td}><OrderLink voucherNo={l.voucher_no} onClick={()=>setOrderVoucher(l.voucher_no)}/></td>
-                              <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:10 }}>{l.item_code}</td>
-                              <td style={{ ...S.td, fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.product_name}</td>
+                              <td onClick={()=>setProductItemCode(l.item_code)} style={{ ...S.td, fontFamily:'monospace', color:'#3b0764', fontSize:10, cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.item_code}</td>
+                              <td onClick={()=>setProductItemCode(l.item_code)} style={{ ...S.td, fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.product_name}</td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{l.category}</td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{l.brand}</td>
                               <td style={{ ...S.td, textAlign:'right' }}>{l.qty}</td>
@@ -383,6 +408,7 @@ function CustomersInner() {
       </div>
 
       {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)} />}
+      {productItemCode && <ProductModal itemCode={productItemCode} onClose={()=>setProductItemCode(null)} />}
     </div>
   )
 }

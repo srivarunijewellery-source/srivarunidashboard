@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { format, subDays, subWeeks, subMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
+import { format, subDays, subWeeks, subMonths, subYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }
 
@@ -24,14 +24,9 @@ export function fmt_num(val: number): string {
  * `new Date("2026-01-01")` is parsed as UTC midnight. When that's later
  * formatted with date-fns' `format()` (which always renders in the
  * viewer's LOCAL timezone), anyone west of UTC — including all of the US —
- * sees it roll back to the previous day (e.g. "Jan 1" renders as "Dec 31"
- * for a Pacific-time browser, since UTC midnight Jan 1 is still Dec 31
- * evening in Los Angeles/Seattle). Every date coming out of the `sales`,
- * `expenses`, etc. tables is a plain calendar date with no real time
- * component, so it should always be parsed as a LOCAL date instead.
- *
- * Use this instead of `new Date(dateStr)` anywhere a stored date column is
- * being turned into a Date object for display, bucketing, or sorting.
+ * sees it roll back to the previous day. Every date coming out of the
+ * `sales`, `expenses`, etc. tables is a plain calendar date with no real
+ * time component, so it should always be parsed as a LOCAL date instead.
  */
 export function parseDate(dateStr: string): Date {
   if (!dateStr) return new Date(NaN)
@@ -40,7 +35,7 @@ export function parseDate(dateStr: string): Date {
   return new Date(y, (m || 1) - 1, d || 1)
 }
 
-export type Grain = 'day' | 'week' | 'month' | 'quarter'
+export type Grain = 'day' | 'week' | 'month' | 'quarter' | 'year'
 
 // DATA_START = earliest date in the database
 export const DATA_START = '2025-12-31'
@@ -61,6 +56,10 @@ export function getPeriods(grain: Grain, n: number): { from: string; to: string;
     if (grain === 'month') {
       const d = subMonths(now, idx)
       return { from: format(startOfMonth(d), 'yyyy-MM-dd'), to: format(endOfMonth(d), 'yyyy-MM-dd'), label: format(d, 'MMM yy') }
+    }
+    if (grain === 'year') {
+      const d = subYears(now, idx)
+      return { from: format(startOfYear(d), 'yyyy-MM-dd'), to: format(endOfYear(d), 'yyyy-MM-dd'), label: format(d, 'yyyy') }
     }
     // quarter
     const totalMonths = now.getFullYear() * 12 + now.getMonth() - idx * 3
@@ -87,7 +86,10 @@ export function getAllMonths(): { from: string; to: string; label: string }[] {
 
 export function getAgeInDays(dateStr: string): number {
   if (!dateStr) return 0
-  return Math.floor((Date.now() - parseDate(dateStr).getTime()) / 86400000)
+  // Clamped at 0 — a viewer far west of IST (e.g. US timezones) can see an
+  // item "synced today" as still being in their own local future for a few
+  // hours, which would otherwise compute as a negative age.
+  return Math.max(0, Math.floor((Date.now() - parseDate(dateStr).getTime()) / 86400000))
 }
 
 export function getAgeBadge(days: number) {
@@ -97,7 +99,7 @@ export function getAgeBadge(days: number) {
   return { label: `${days}d`, color: 'bg-red-100 text-red-700' }
 }
 
-// Date range for a specific month/year selection
+// Date range for a specific period/offset selection (offset = periods back from now)
 export function getDateRange(grain: Grain, offset = 0) {
   const now = new Date()
   if (grain === 'day') {
@@ -112,6 +114,10 @@ export function getDateRange(grain: Grain, offset = 0) {
   if (grain === 'month') {
     const d = subMonths(now, offset)
     return { from: format(startOfMonth(d), 'yyyy-MM-dd'), to: format(endOfMonth(d), 'yyyy-MM-dd'), label: format(d, 'MMM yyyy') }
+  }
+  if (grain === 'year') {
+    const d = subYears(now, offset)
+    return { from: format(startOfYear(d), 'yyyy-MM-dd'), to: format(endOfYear(d), 'yyyy-MM-dd'), label: format(d, 'yyyy') }
   }
   const totalM = now.getFullYear() * 12 + now.getMonth() - offset * 3
   const y = Math.floor(totalM / 12)

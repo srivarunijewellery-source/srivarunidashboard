@@ -1,9 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, DATA_START, parseDate } from '@/lib/utils'
+import { fmt_inr, fmt_num, getDateRange, parseDate, DATA_START, type Grain } from '@/lib/utils'
 import Link from 'next/link'
 import PageHeader from '@/components/layout/PageHeader'
+import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
@@ -34,94 +35,92 @@ const Tip = ({ active, payload, label }: any) => {
 }
 
 export default function OverviewPage() {
-  const [metrics, setMetrics] = useState({ revenue: 0, profit: 0, qty: 0, customers: 0, bills: 0, margin: 0, this_month: 0, last_month: 0 })
+  const [grain, setGrain] = useState<Grain>('month')
+  const [offset, setOffset] = useState(0)
+  const dateRange = getDateRange(grain, offset)
+
+  const [metrics, setMetrics] = useState({ revenue: 0, profit: 0, qty: 0, customers: 0, bills: 0, margin: 0 })
   const [trendData, setTrendData] = useState<any[]>([])
   const [catData, setCatData] = useState<any[]>([])
   const [lowStock, setLowStock] = useState<any[]>([])
   const [topCustomers, setTopCustomers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        // All sales
-        const sales = await fetchAllRows('sales', 'date,net_amount,profit,qty,category,voucher_no,mobile_no,customer_name', q =>
-          q.gte('date', DATA_START))
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      // Period-scoped sales
+      const sales = await fetchAllRows('sales', 'date,net_amount,profit,qty,category,voucher_no,mobile_no,customer_name', q =>
+        q.gte('date', dateRange.from).lte('date', dateRange.to))
 
-        const totalRev = sales.reduce((s,r)=>s+(r.net_amount||0), 0)
-        const totalPro = sales.reduce((s,r)=>s+(r.profit||0), 0)
-        const totalQty = sales.reduce((s,r)=>s+(r.qty||0), 0)
-        const now = new Date()
-        const thisMonthStart = format(startOfMonth(now), 'yyyy-MM-dd')
-        const lastMonthStart = format(startOfMonth(subMonths(now,1)), 'yyyy-MM-dd')
-        const lastMonthEnd   = format(endOfMonth(subMonths(now,1)), 'yyyy-MM-dd')
-        const thisM = sales.filter(s=>s.date>=thisMonthStart).reduce((t,r)=>t+(r.net_amount||0),0)
-        const lastM = sales.filter(s=>s.date>=lastMonthStart&&s.date<=lastMonthEnd).reduce((t,r)=>t+(r.net_amount||0),0)
+      const totalRev = sales.reduce((s,r)=>s+(r.net_amount||0), 0)
+      const totalPro = sales.reduce((s,r)=>s+(r.profit||0), 0)
+      const totalQty = sales.reduce((s,r)=>s+(r.qty||0), 0)
 
-        setMetrics({
-          revenue: totalRev, profit: totalPro, qty: totalQty,
-          customers: new Set(sales.map(s=>s.mobile_no).filter(Boolean)).size,
-          bills: new Set(sales.map(s=>s.voucher_no)).size,
-          margin: totalRev>0?totalPro/totalRev*100:0,
-          this_month: thisM, last_month: lastM
-        })
+      setMetrics({
+        revenue: totalRev, profit: totalPro, qty: totalQty,
+        customers: new Set(sales.map(s=>s.mobile_no||s.customer_name).filter(Boolean)).size,
+        bills: new Set(sales.map(s=>s.voucher_no)).size,
+        margin: totalRev>0?totalPro/totalRev*100:0,
+      })
 
-        // Monthly trend (last 8 months)
-        const months: Record<string,{revenue:number,profit:number,qty:number}> = {}
-        for (let i=7;i>=0;i--) {
-          const d = subMonths(now,i)
-          const lbl = format(d,'MMM yy')
-          months[lbl] = {revenue:0,profit:0,qty:0}
-        }
-        for (const r of sales) {
-          const lbl = format(parseDate(r.date),'MMM yy')
-          if (months[lbl]) { months[lbl].revenue+=r.net_amount||0; months[lbl].profit+=r.profit||0; months[lbl].qty+=r.qty||0 }
-        }
-        setTrendData(Object.entries(months).map(([label,v])=>({label,...v})))
+      // Category breakdown for the selected period
+      const cats: Record<string,number> = {}
+      for (const r of sales) { const c=r.category||'Other'; cats[c]=(cats[c]||0)+(r.net_amount||0) }
+      const sorted = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6)
+      setCatData(sorted.map(([name,value])=>({name,value})))
 
-        // Category breakdown
-        const cats: Record<string,number> = {}
-        for (const r of sales) { const c=r.category||'Other'; cats[c]=(cats[c]||0)+(r.net_amount||0) }
-        const sorted = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6)
-        setCatData(sorted.map(([name,value])=>({name,value})))
+      // Top customers for the selected period
+      const custMap: Record<string,any> = {}
+      for (const r of sales) {
+        const key = r.mobile_no || r.customer_name || 'unknown'
+        if (!custMap[key]) custMap[key] = { customer_name: r.customer_name||'Walk-in', mobile_no: r.mobile_no, visit_count:0, total_spend:0, vouchers:new Set<string>() }
+        custMap[key].vouchers.add(r.voucher_no)
+        custMap[key].total_spend += r.net_amount||0
+      }
+      const custList = Object.values(custMap).map((c:any)=>({ ...c, visit_count:c.vouchers.size })).sort((a:any,b:any)=>b.total_spend-a.total_spend).slice(0,10)
+      setTopCustomers(custList)
 
-        // Low stock
-        const { data: inv } = await supabase.from('inventory_with_cost')
-          .select('item_code,product_name,category,brand,qty,mrp,cost_per_unit')
-          .gt('qty',0).lt('qty',4).order('qty').limit(10)
-        setLowStock(inv||[])
+      // Low stock — always live/current, not period-scoped
+      const { data: inv } = await supabase.from('inventory_with_cost')
+        .select('item_code,product_name,category,brand,qty,mrp,cost_per_unit')
+        .gt('qty',0).lt('qty',4).order('qty').limit(10)
+      setLowStock(inv||[])
 
-        // Top customers
-        const { data: cust } = await supabase.from('customer_summary')
-          .select('*').order('total_spend',{ascending:false}).limit(10)
-        setTopCustomers(cust||[])
-      } finally { setLoading(false) }
-    }
-    load()
-  }, [])
+      // Trend — fixed last-8-months context, independent of the period filter
+      const now = new Date()
+      const months: Record<string,{revenue:number,profit:number,qty:number}> = {}
+      for (let i=7;i>=0;i--) { const d = subMonths(now,i); months[format(d,'MMM yy')] = {revenue:0,profit:0,qty:0} }
+      const trendSales = await fetchAllRows('sales', 'date,net_amount,profit,qty', q => q.gte('date', DATA_START))
+      for (const r of trendSales) {
+        const lbl = format(parseDate(r.date),'MMM yy')
+        if (months[lbl]) { months[lbl].revenue+=r.net_amount||0; months[lbl].profit+=r.profit||0; months[lbl].qty+=r.qty||0 }
+      }
+      setTrendData(Object.entries(months).map(([label,v])=>({label,...v})))
+    } finally { setLoading(false) }
+  }, [dateRange.from, dateRange.to])
 
-  const monthDelta = metrics.last_month>0?(metrics.this_month-metrics.last_month)/metrics.last_month*100:0
+  useEffect(() => { load() }, [load])
 
   return (
     <div style={{ minHeight: '100%', background: '#f5f0e8' }}>
-      <PageHeader title="Overview" subtitle={`Dashboard · Dec 2025 – ${format(new Date(),'MMM yyyy')}`} />
+      <PageHeader title="Overview" subtitle="Dashboard" />
       <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        <DateNav grain={grain} onGrainChange={setGrain} offset={offset} onOffsetChange={setOffset} label={dateRange.label} />
 
         {/* KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 14 }}>
-          <MetricCard label="All-time Revenue" value={fmt_inr(metrics.revenue)} accent="purple" />
-          <MetricCard label="All-time Profit" value={fmt_inr(metrics.profit)} sub={`${metrics.margin.toFixed(1)}% margin`} accent="green" />
-          <MetricCard label="This Month" value={fmt_inr(metrics.this_month)} accent="purple"
-            delta={monthDelta!==0?{value:`${Math.abs(monthDelta).toFixed(1)}% vs last month`,positive:monthDelta>=0}:undefined} />
+          <MetricCard label="Revenue" value={fmt_inr(metrics.revenue)} sub={dateRange.label} accent="purple" />
+          <MetricCard label="Profit" value={fmt_inr(metrics.profit)} sub={`${metrics.margin.toFixed(1)}% margin`} accent="green" />
           <MetricCard label="Total Bills" value={fmt_num(metrics.bills)} accent="beige" />
           <MetricCard label="Units Sold" value={fmt_num(metrics.qty)} accent="beige" />
           <MetricCard label="Customers" value={fmt_num(metrics.customers)} sub="With phone" accent="beige" />
+          <MetricCard label="Avg Bill" value={fmt_inr(metrics.bills?metrics.revenue/metrics.bills:0)} accent="beige" />
         </div>
 
         {/* Charts row */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
-          {/* Trend */}
           <div style={S.card}>
             <h2 className="font-display" style={{ color: '#3b0764', fontSize: 16, margin: '0 0 16px' }}>Revenue Trend — Last 8 Months</h2>
             {loading?<div style={{ height:220,background:'#f5f0e8',borderRadius:12 }}/>:(
@@ -138,10 +137,12 @@ export default function OverviewPage() {
             )}
           </div>
 
-          {/* Category pie */}
           <div style={S.card}>
             <h2 className="font-display" style={{ color: '#3b0764', fontSize: 16, margin: '0 0 16px' }}>Revenue by Category</h2>
-            {loading?<div style={{ height:220,background:'#f5f0e8',borderRadius:12 }}/>:(
+            <p style={{ fontSize: 11, color: '#6b5b7b', margin: '-12px 0 12px' }}>{dateRange.label}</p>
+            {loading?<div style={{ height:220,background:'#f5f0e8',borderRadius:12 }}/>:catData.length===0?(
+              <div style={{ height:220, display:'flex', alignItems:'center', justifyContent:'center', color:'#6b5b7b', fontSize:13 }}>No sales this period</div>
+            ):(
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie data={catData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({name,percent})=>`${name} ${((percent??0)*100).toFixed(0)}%`} labelLine={false} style={{ fontSize:9 }}>
@@ -156,19 +157,16 @@ export default function OverviewPage() {
 
         {/* Bottom row */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          {/* Low stock */}
           <div style={S.section}>
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #e8d5b7', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18 }}>⚠️</span>
               <div>
                 <h3 className="font-display" style={{ color: '#3b0764', fontSize: 15, margin: 0 }}>Low Stock Alert</h3>
-                <p style={{ fontSize: 11, color: '#6b5b7b', marginTop: 2 }}>Items with 3 or fewer units remaining</p>
+                <p style={{ fontSize: 11, color: '#6b5b7b', marginTop: 2 }}>Items with 3 or fewer units remaining · live, not period-scoped</p>
               </div>
             </div>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-              <thead><tr>
-                {['Product','Category','Stock','MRP'].map(h=><th key={h} style={S.th}>{h}</th>)}
-              </tr></thead>
+              <thead><tr>{['Product','Category','Stock','MRP'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {lowStock.map((item,i)=>(
                   <tr key={item.item_code} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
@@ -188,22 +186,21 @@ export default function OverviewPage() {
             </table>
           </div>
 
-          {/* Top customers */}
           <div style={S.section}>
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #e8d5b7', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18 }}>👑</span>
               <div>
                 <h3 className="font-display" style={{ color: '#3b0764', fontSize: 15, margin: 0 }}>Top Customers</h3>
-                <p style={{ fontSize: 11, color: '#6b5b7b', marginTop: 2 }}>By lifetime spend</p>
+                <p style={{ fontSize: 11, color: '#6b5b7b', marginTop: 2 }}>By spend · {dateRange.label}</p>
               </div>
             </div>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
               <thead><tr>
-                {['Customer','Visits','Spend','Last Visit'].map(h=><th key={h} style={S.th}>{h}</th>)}
+                {['Customer','Visits','Spend'].map(h=><th key={h} style={S.th}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {topCustomers.map((c,i)=>(
-                  <tr key={c.mobile_no} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
+                  <tr key={c.mobile_no||c.customer_name+i} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                     <td style={{ ...S.td, fontWeight:600 }}>
                       <Link href={`/customers?name=${encodeURIComponent(c.customer_name||'')}&mobile=${encodeURIComponent(c.mobile_no||'')}`}
                         style={{ color:'#3b0764', textDecoration:'underline', textDecorationColor:'#c4b5fd', textUnderlineOffset:2 }}>{c.customer_name}</Link>
@@ -213,9 +210,11 @@ export default function OverviewPage() {
                       <span style={{ padding:'2px 8px', borderRadius:20, fontWeight:700, fontSize:11, background:'#ede9ff', color:'#3b0764' }}>{c.visit_count}×</span>
                     </td>
                     <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#3b0764' }}>{fmt_inr(c.total_spend)}</td>
-                    <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{c.last_visit ? format(parseDate(c.last_visit),'dd MMM yy') : '—'}</td>
                   </tr>
                 ))}
+                {!loading&&topCustomers.length===0&&(
+                  <tr><td colSpan={3} style={{ ...S.td, textAlign:'center', color:'#6b5b7b', padding:24 }}>No customers this period</td></tr>
+                )}
               </tbody>
             </table>
           </div>
