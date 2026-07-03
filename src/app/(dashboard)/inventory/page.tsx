@@ -51,6 +51,23 @@ export default function InventoryPage() {
   }, [])
   useEffect(() => { loadInventory() }, [loadInventory])
 
+  // MRP fallback: the ERP's product catalog export has MRP populated on
+  // only ~0.3% of products (a genuine gap in the source data, not
+  // something wrong on our side) — but every SALE captures the real MRP
+  // used at the register. For any item missing a catalog MRP, fall back to
+  // the MRP from its most recent sale, and mark it clearly as an estimate
+  // so it's never confused with a live catalog price.
+  const [salesMrpMap, setSalesMrpMap] = useState<Record<string, number>>({})
+  useEffect(() => {
+    fetchAllRows('sales', 'item_code,mrp,date', q => q.gt('mrp', 0)).then(data => {
+      const latest: Record<string, { mrp: number; date: string }> = {}
+      for (const r of data) {
+        if (!latest[r.item_code] || r.date > latest[r.item_code].date) latest[r.item_code] = { mrp: r.mrp, date: r.date }
+      }
+      setSalesMrpMap(Object.fromEntries(Object.entries(latest).map(([k, v]) => [k, v.mrp])))
+    })
+  }, [])
+
   // Category rationalization — the ERP has near-duplicate spellings
   // ("BANGLE" vs "bangles", "mang tika" vs "Maang Tikka", "Short Haram" vs
   // "Short Necklace", etc). normalizeCategory() rolls them all up to one
@@ -75,8 +92,14 @@ export default function InventoryPage() {
       if (!map[key].image_url && p.image_url) map[key].image_url = p.image_url
       if (!map[key].mrp && p.mrp) map[key].mrp = p.mrp
     }
+    for (const key of Object.keys(map)) {
+      if (!map[key].mrp && salesMrpMap[key]) {
+        map[key].mrp = salesMrpMap[key]
+        map[key].mrp_estimated = true
+      }
+    }
     return Object.values(map)
-  }, [allInventory])
+  }, [allInventory, salesMrpMap])
 
   const { rows: pivotRows, brands: pivotBrands } = useMemo(() => {
     const map: Record<string, any> = {}
@@ -281,7 +304,7 @@ export default function InventoryPage() {
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b'}}> ({item._batches} batches)</span>:''}</td>
-                      <td style={{ ...S.td, textAlign:'right' }}>{item.mrp>0?fmt_inr(item.mrp):'—'}</td>
+                      <td style={{ ...S.td, textAlign:'right' }}>{item.mrp>0?fmt_inr(item.mrp):'—'}{item.mrp_estimated?<span style={{fontSize:9,color:'#d97706'}}> (est.)</span>:''}</td>
                       <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
                     </tr>
