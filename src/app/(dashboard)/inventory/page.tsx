@@ -108,7 +108,7 @@ export default function InventoryPage() {
     return Object.values(map)
   }, [allInventory])
 
-  const { rows: pivotRows, brands: pivotBrands, grandTotal } = useMemo(() => {
+  const { rows: pivotRows, brandTotals, grandTotal } = useMemo(() => {
     const map: Record<string, any> = {}
     const brandTotals: Record<string, number> = {}
     const grand = { qty:0, value:0 }
@@ -126,10 +126,23 @@ export default function InventoryPage() {
     }
     return {
       rows: Object.values(map).sort((a:any,b:any)=>b.total.qty-a.total.qty),
-      brands: Object.keys(brandTotals).sort((a,b)=>brandTotals[b]-brandTotals[a]),
+      brandTotals,
       grandTotal: grand,
     }
   }, [productsByItemCode])
+
+  // Column sort — the direct mirror of row sorting. Rows are sorted by
+  // clicking a column header (a column's values reorder the rows); here
+  // clicking the column-sort toggle reorders the COLUMNS (brands) by
+  // their own overall total qty, highest-to-lowest by default, flipping
+  // to lowest-to-highest on a second click. This only makes sense where
+  // columns share one comparable metric (brands here) — Expenses' month
+  // columns stay chronological on purpose, since scrambling them would
+  // break the month-over-month % change logic.
+  const [colSortDir, setColSortDir] = useState<'asc'|'desc'>('desc')
+  const pivotBrands = useMemo(() => {
+    return Object.keys(brandTotals).sort((a,b)=> colSortDir==='desc' ? brandTotals[b]-brandTotals[a] : brandTotals[a]-brandTotals[b])
+  }, [brandTotals, colSortDir])
 
   // Click any column header to sort — first click highest-to-lowest,
   // second click flips to lowest-to-highest. Since rows here ARE the
@@ -244,9 +257,18 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        <div>
-          <h2 className="font-display" style={{ fontSize:18, color:'#3b0764', margin:0 }}>Stock Snapshot — Category × Brand</h2>
-          <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Click any cell for the product list · one row per product (multi-batch items summed) · click a product to open it in VasyERP</p>
+        <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+          <div>
+            <h2 className="font-display" style={{ fontSize:18, color:'#3b0764', margin:0 }}>Stock Snapshot — Category × Brand</h2>
+            <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Click any cell for the product list · one row per product (multi-batch items summed) · click a product to open it in VasyERP</p>
+          </div>
+          <button onClick={()=>setColSortDir(d=>d==='desc'?'asc':'desc')} style={{
+            display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:9, cursor:'pointer',
+            border:'1px solid #e8d5b7', background:'#fff', fontSize:12, fontWeight:600, color:'#3b0764',
+          }}>
+            Brand columns: {colSortDir==='desc'?'Highest → Lowest':'Lowest → Highest'}
+            <SortIndicator active dir={colSortDir}/>
+          </button>
         </div>
 
         {invLoading?<div style={{ height:200, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>:(
