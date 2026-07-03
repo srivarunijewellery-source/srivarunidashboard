@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, getAllMonths, DATA_START } from '@/lib/utils'
+import { fmt_inr, fmt_num, getAllMonths, DATA_START, parseDate } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
@@ -62,7 +62,7 @@ export default function TeamPage() {
       const map: Record<string,any> = {}
       for (const row of data) {
         const sm = row.sales_man||'Unknown'
-        const lbl = format(new Date(row.date),'MMM yy')
+        const lbl = format(parseDate(row.date),'MMM yy')
         seenMonths.add(lbl)
         if (!map[sm]) map[sm] = {name:sm,months:{},total:0,qty:0}
         if (!map[sm].months[lbl]) map[sm].months[lbl] = {sales:0,qty:0}

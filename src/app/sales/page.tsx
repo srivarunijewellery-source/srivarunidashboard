@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, fmt_pct, getPeriods, getAllMonths, DATA_START, type Grain } from '@/lib/utils'
+import { fmt_inr, fmt_num, fmt_pct, getPeriods, getAllMonths, DATA_START, parseDate, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import GrainSelector from '@/components/ui/GrainSelector'
 import MetricCard from '@/components/ui/MetricCard'
@@ -58,7 +58,7 @@ export default function SalesPage() {
       periods.forEach(p => { buckets[p.label] = { label: p.label, revenue: 0, profit: 0, qty: 0 } })
 
       for (const row of data) {
-        const d = new Date(row.date)
+        const d = parseDate(row.date)
         let lbl = ''
         if (grain === 'day') lbl = format(d, 'dd MMM')
         else if (grain === 'week') lbl = format(startOfWeek(d, { weekStartsOn: 1 }), 'dd MMM')
@@ -89,7 +89,7 @@ export default function SalesPage() {
       const map: Record<string, any> = {}
       for (const row of data) {
         const sm = row.sales_man || 'Unknown'
-        const lbl = format(new Date(row.date), 'MMM yy')
+        const lbl = format(parseDate(row.date), 'MMM yy')
         if (!map[sm]) map[sm] = { name: sm, months: {}, total: 0, qty: 0 }
         if (!map[sm].months[lbl]) map[sm].months[lbl] = { sales: 0, qty: 0 }
         map[sm].months[lbl].sales += row.net_amount||0

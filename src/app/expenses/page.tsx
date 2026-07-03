@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
-import { fmt_inr, getAllMonths, DATA_START } from '@/lib/utils'
+import { supabase, fetchAllRows } from '@/lib/supabase'
+import { fmt_inr, getAllMonths, DATA_START, parseDate } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
 import { format } from 'date-fns'
@@ -37,9 +37,8 @@ export default function ExpensesPage() {
       const lbls = periods.map(p => p.label)
       setMonths(lbls)
 
-      const { data } = await supabase.from('expenses').select('date,vendor_name,gross_total')
-        .gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0])
-      if (!data) return
+      const data = await fetchAllRows('expenses', 'date,vendor_name,gross_total', q =>
+        q.gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0]))
 
       const catMap: Record<string, any> = {}
       const monthTotals: Record<string, number> = {}
@@ -47,7 +46,7 @@ export default function ExpensesPage() {
 
       for (const row of data) {
         const vendor = row.vendor_name || 'Other'
-        const lbl = format(new Date(row.date), 'MMM yy')
+        const lbl = format(parseDate(row.date), 'MMM yy')
         const amt = row.gross_total || 0
         if (!catMap[vendor]) catMap[vendor] = { vendor, months: {}, total: 0 }
         catMap[vendor].months[lbl] = (catMap[vendor].months[lbl] || 0) + amt

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { fmt_inr, fmt_pct } from '@/lib/utils'
+import { fmt_inr, fmt_pct, parseDate } from '@/lib/utils'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
 
@@ -38,7 +38,7 @@ export default function OrderModal({ voucherNo, onClose }: { voucherNo: string; 
             <h3 className="font-display" style={{ color: '#fff', margin: 0, fontSize: 18 }}>Order {voucherNo}</h3>
             {first && (
               <p style={{ color: '#c4b5fd', fontSize: 12, margin: '4px 0 0' }}>
-                {format(new Date(first.date), 'dd MMM yyyy')} · {first.customer_name || 'Walk-in'}{first.mobile_no ? ` · ${first.mobile_no}` : ''} · {first.sales_man || ''}
+                {format(parseDate(first.date), 'dd MMM yyyy')} · {first.customer_name || 'Walk-in'}{first.mobile_no ? ` · ${first.mobile_no}` : ''} · {first.sales_man || ''}
               </p>
             )}
           </div>

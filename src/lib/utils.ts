@@ -17,6 +17,29 @@ export function fmt_num(val: number): string {
   return val.toLocaleString('en-IN')
 }
 
+/**
+ * Parse a date-only string (e.g. "2026-01-01", or an ISO timestamp with a
+ * time component) as a LOCAL calendar date, not a UTC instant.
+ *
+ * `new Date("2026-01-01")` is parsed as UTC midnight. When that's later
+ * formatted with date-fns' `format()` (which always renders in the
+ * viewer's LOCAL timezone), anyone west of UTC — including all of the US —
+ * sees it roll back to the previous day (e.g. "Jan 1" renders as "Dec 31"
+ * for a Pacific-time browser, since UTC midnight Jan 1 is still Dec 31
+ * evening in Los Angeles/Seattle). Every date coming out of the `sales`,
+ * `expenses`, etc. tables is a plain calendar date with no real time
+ * component, so it should always be parsed as a LOCAL date instead.
+ *
+ * Use this instead of `new Date(dateStr)` anywhere a stored date column is
+ * being turned into a Date object for display, bucketing, or sorting.
+ */
+export function parseDate(dateStr: string): Date {
+  if (!dateStr) return new Date(NaN)
+  const datePart = dateStr.split('T')[0]
+  const [y, m, d] = datePart.split('-').map(Number)
+  return new Date(y, (m || 1) - 1, d || 1)
+}
+
 export type Grain = 'day' | 'week' | 'month' | 'quarter'
 
 // DATA_START = earliest date in the database
@@ -51,7 +74,7 @@ export function getPeriods(grain: Grain, n: number): { from: string; to: string;
 
 // Get all months from DATA_START to now
 export function getAllMonths(): { from: string; to: string; label: string }[] {
-  const start = new Date(DATA_START)
+  const start = parseDate(DATA_START)
   const now = new Date()
   const months: { from: string; to: string; label: string }[] = []
   let cur = startOfMonth(start)
@@ -64,7 +87,7 @@ export function getAllMonths(): { from: string; to: string; label: string }[] {
 
 export function getAgeInDays(dateStr: string): number {
   if (!dateStr) return 0
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
+  return Math.floor((Date.now() - parseDate(dateStr).getTime()) / 86400000)
 }
 
 export function getAgeBadge(days: number) {

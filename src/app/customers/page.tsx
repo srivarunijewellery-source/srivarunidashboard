@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase, fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, fmt_pct, DATA_START } from '@/lib/utils'
+import { fmt_inr, fmt_num, fmt_pct, DATA_START, parseDate } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
 import OrderModal from '@/components/ui/OrderModal'
@@ -120,10 +120,10 @@ function CustomersInner() {
         if (!billMap[v]) billMap[v] = { voucher_no:v, date:r.date, sales_man:r.sales_man||'', items:0, unique_products:0, net_amount:0, profit:0, discount:0 }
         billMap[v].items += r.qty||0; billMap[v].net_amount += r.net_amount||0; billMap[v].profit += r.profit||0; billMap[v].discount += r.other_discount||0
       }
-      const billList = Object.values(billMap).sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime())
+      const billList = Object.values(billMap).sort((a,b)=>parseDate(b.date).getTime()-parseDate(a.date).getTime())
       for (const b of billList) b.unique_products = data.filter(r=>r.voucher_no===b.voucher_no).length
       setBills(billList)
-      setLines(data.sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime()))
+      setLines(data.sort((a,b)=>parseDate(b.date).getTime()-parseDate(a.date).getTime()))
     } finally { setLoadingSearch(false) }
   }, [])
 
@@ -146,8 +146,8 @@ function CustomersInner() {
   const totalProfit = bills.reduce((s,b)=>s+b.profit,0)
   const totalDisc = bills.reduce((s,b)=>s+b.discount,0)
   const margin = totalSpend>0?totalProfit/totalSpend*100:0
-  const firstVisit = bills.length?format(new Date(bills[bills.length-1].date),'dd MMM yyyy'):''
-  const lastVisit  = bills.length?format(new Date(bills[0].date),'dd MMM yyyy'):''
+  const firstVisit = bills.length?format(parseDate(bills[bills.length-1].date),'dd MMM yyyy'):''
+  const lastVisit  = bills.length?format(parseDate(bills[0].date),'dd MMM yyyy'):''
 
   const Tip = ({ active, payload, label }: any) => {
     if (!active||!payload?.length) return null
@@ -245,8 +245,8 @@ function CustomersInner() {
                       <td style={{ ...S.td, textAlign:'right', color:'#059669', fontWeight:600 }}>{fmt_inr(c.total_profit)}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:m>=40?'#059669':m>=25?'#d97706':'#dc2626' }}>{fmt_pct(m)}</td>
                       <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{fmt_num(c.total_units)}</td>
-                      <td style={{ ...S.td, color:'#6b5b7b' }}>{c.first_visit?format(new Date(c.first_visit),'dd MMM yy'):'—'}</td>
-                      <td style={{ ...S.td, color:'#6b5b7b' }}>{c.last_visit?format(new Date(c.last_visit),'dd MMM yy'):'—'}</td>
+                      <td style={{ ...S.td, color:'#6b5b7b' }}>{c.first_visit?format(parseDate(c.first_visit),'dd MMM yy'):'—'}</td>
+                      <td style={{ ...S.td, color:'#6b5b7b' }}>{c.last_visit?format(parseDate(c.last_visit),'dd MMM yy'):'—'}</td>
                     </tr>
                   )
                 })}
@@ -327,7 +327,7 @@ function CustomersInner() {
                           return (
                             <tr key={b.voucher_no} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                               <td style={{ ...S.td, fontWeight:700, color:'#7c3aed' }}>{vn}<sup style={{fontSize:8}}>{sfx}</sup></td>
-                              <td style={S.td}>{format(new Date(b.date),'dd MMM yyyy')}</td>
+                              <td style={S.td}>{format(parseDate(b.date),'dd MMM yyyy')}</td>
                               <td style={S.td}><OrderLink voucherNo={b.voucher_no} onClick={()=>setOrderVoucher(b.voucher_no)}/></td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{b.sales_man}</td>
                               <td style={{ ...S.td, textAlign:'right' }}>{fmt_num(b.items)}</td>
@@ -359,7 +359,7 @@ function CustomersInner() {
                           const m=l.net_amount>0?l.profit/l.net_amount*100:0
                           return (
                             <tr key={`${l.voucher_no}-${l.item_code}-${i}`} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
-                              <td style={{ ...S.td, color:'#6b5b7b' }}>{format(new Date(l.date),'dd MMM yy')}</td>
+                              <td style={{ ...S.td, color:'#6b5b7b' }}>{format(parseDate(l.date),'dd MMM yy')}</td>
                               <td style={S.td}><OrderLink voucherNo={l.voucher_no} onClick={()=>setOrderVoucher(l.voucher_no)}/></td>
                               <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:10 }}>{l.item_code}</td>
                               <td style={{ ...S.td, fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.product_name}</td>

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, DATA_START } from '@/lib/utils'
+import { fmt_inr, fmt_num, DATA_START, parseDate } from '@/lib/utils'
 import Link from 'next/link'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
@@ -75,7 +75,7 @@ export default function OverviewPage() {
           months[lbl] = {revenue:0,profit:0,qty:0}
         }
         for (const r of sales) {
-          const lbl = format(new Date(r.date),'MMM yy')
+          const lbl = format(parseDate(r.date),'MMM yy')
           if (months[lbl]) { months[lbl].revenue+=r.net_amount||0; months[lbl].profit+=r.profit||0; months[lbl].qty+=r.qty||0 }
         }
         setTrendData(Object.entries(months).map(([label,v])=>({label,...v})))
@@ -213,7 +213,7 @@ export default function OverviewPage() {
                       <span style={{ padding:'2px 8px', borderRadius:20, fontWeight:700, fontSize:11, background:'#ede9ff', color:'#3b0764' }}>{c.visit_count}×</span>
                     </td>
                     <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#3b0764' }}>{fmt_inr(c.total_spend)}</td>
-                    <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{c.last_visit ? format(new Date(c.last_visit),'dd MMM yy') : '—'}</td>
+                    <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{c.last_visit ? format(parseDate(c.last_visit),'dd MMM yy') : '—'}</td>
                   </tr>
                 ))}
               </tbody>
