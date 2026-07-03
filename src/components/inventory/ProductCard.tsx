@@ -1,6 +1,7 @@
 'use client'
 import HoverImage from '@/components/ui/HoverImage'
 import type { ProductHint } from '@/components/ui/ProductModal'
+import { normalizeCategory } from '@/lib/utils'
 
 interface ProductCardProps {
   item_code: string; product_name: string; category: string; brand: string
@@ -53,7 +54,7 @@ export default function ProductCard({ item_code, product_name, category, brand, 
       {/* Content */}
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
         <div>
-          <p style={{ fontSize: 10, color: '#6b5b7b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>{category}</p>
+          <p style={{ fontSize: 10, color: '#6b5b7b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>{normalizeCategory(category)}</p>
           <p onClick={() => onProductClick?.(item_code, { product_name, category, brand, mrp, landing_cost, image_url })} style={{ fontSize: 13, fontWeight: 600, color: onProductClick ? '#3b0764' : '#1a0a2e', margin: '2px 0 0', lineHeight: 1.3, cursor: onProductClick ? 'pointer' : 'default', textDecoration: onProductClick ? 'underline' : 'none', textDecorationColor: '#c4b5fd',
             overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{product_name}</p>
           <p style={{ fontSize: 11, color: '#6b5b7b', margin: '2px 0 0' }}>{brand}</p>

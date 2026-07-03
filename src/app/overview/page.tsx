@@ -1,8 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, getDateRange, parseDate, DATA_START, type Grain } from '@/lib/utils'
+import { fmt_inr, fmt_num, getDateRange, parseDate, DATA_START, normalizeCategory } from '@/lib/utils'
 import { useBranch } from '@/lib/branch-context'
+import { useDateRange } from '@/lib/date-range-context'
 import Link from 'next/link'
 import PageHeader from '@/components/layout/PageHeader'
 import DateNav from '@/components/ui/DateNav'
@@ -37,8 +38,7 @@ const Tip = ({ active, payload, label }: any) => {
 
 export default function OverviewPage() {
   const { selectedBranch } = useBranch()
-  const [grain, setGrain] = useState<Grain>('month')
-  const [offset, setOffset] = useState(0)
+  const { grain, offset, setGrain, setOffset } = useDateRange()
   const dateRange = getDateRange(grain, offset)
 
   const [metrics, setMetrics] = useState({ revenue: 0, profit: 0, qty: 0, customers: 0, bills: 0, margin: 0 })
@@ -71,7 +71,7 @@ export default function OverviewPage() {
 
       // Category breakdown for the selected period
       const cats: Record<string,number> = {}
-      for (const r of sales) { const c=r.category||'Other'; cats[c]=(cats[c]||0)+(r.net_amount||0) }
+      for (const r of sales) { const c=normalizeCategory(r.category); cats[c]=(cats[c]||0)+(r.net_amount||0) }
       const sorted = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6)
       setCatData(sorted.map(([name,value])=>({name,value})))
 

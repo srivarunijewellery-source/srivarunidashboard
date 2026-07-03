@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchAllRows } from '@/lib/supabase'
 import { useBranch } from '@/lib/branch-context'
-import { fmt_inr, fmt_num, getDateRange, type Grain } from '@/lib/utils'
+import { fmt_inr, fmt_num, getDateRange } from '@/lib/utils'
+import { useDateRange } from '@/lib/date-range-context'
 import PageHeader from '@/components/layout/PageHeader'
 import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
@@ -18,8 +19,7 @@ const S = {
 
 export default function TeamPage() {
   const { selectedBranch } = useBranch()
-  const [grain, setGrain] = useState<Grain>('month')
-  const [offset, setOffset] = useState(0)
+  const { grain, offset, setGrain, setOffset } = useDateRange()
   const dateRange = getDateRange(grain, offset)
 
   const [rows, setRows] = useState<any[]>([])

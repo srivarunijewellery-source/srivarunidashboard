@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchAllRows } from '@/lib/supabase'
 import { useBranch } from '@/lib/branch-context'
 import { fmt_inr, fmt_num, getPeriods, getAllMonths, getDateRange, DATA_START, parseDate, type Grain } from '@/lib/utils'
+import { useDateRange } from '@/lib/date-range-context'
 import PageHeader from '@/components/layout/PageHeader'
 import GrainSelector from '@/components/ui/GrainSelector'
 import DateNav from '@/components/ui/DateNav'
@@ -88,8 +89,7 @@ export default function SalesPage() {
   const margin = metrics.revenue > 0 ? metrics.profit/metrics.revenue*100 : 0
 
   // ── Details state (moved from Inventory → Sold Items) ──────────────────────
-  const [dGrain, setDGrain] = useState<Grain>('day')
-  const [dOffset, setDOffset] = useState(0)
+  const { grain: dGrain, offset: dOffset, setGrain: setDGrain, setOffset: setDOffset } = useDateRange()
   const [page, setPage] = useState(0)
   const [soldItems, setSoldItems] = useState<any[]>([])
   const [dMetrics, setDMetrics] = useState({ revenue:0, profit:0, qty:0, products:0, customers:0, bills:0 })

@@ -126,3 +126,57 @@ export function getDateRange(grain: Grain, offset = 0) {
   const qe = new Date(qs.getFullYear(), qs.getMonth() + 3, 0)
   return { from: format(qs, 'yyyy-MM-dd'), to: format(qe, 'yyyy-MM-dd'), label: `Q${Math.floor(qs.getMonth()/3)+1} ${qs.getFullYear()}` }
 }
+
+
+// ── Category rationalization ────────────────────────────────────────────
+// The ERP has accumulated near-duplicate category spellings over time
+// (case variants, typos, phonetic spelling differences) — e.g. "BANGLE" vs
+// "bangles", "mang tika" vs "Maang Tikka", "Short Haram" vs "Short
+// Necklace". This maps known duplicates to one canonical display name;
+// anything not explicitly listed just gets consistent title-casing.
+const CATEGORY_ALIASES: Record<string, string> = {
+  'bags': 'Bags', 'BAGS': 'Bags',
+  'BANGLE': 'Bangles', 'bangles': 'Bangles',
+  'mang tika': 'Maang Tikka', 'Maang Tikka': 'Maang Tikka',
+  'PATILU': 'Patilu', 'PATTILU': 'Patilu',
+  'Short Haram': 'Short Necklace', 'short haram': 'Short Necklace', 'Short Necklace': 'Short Necklace',
+  'lear neck set': 'Layer Neck Set', '2 lear neck set': 'Layer Neck Set',
+  'lear chain': 'Layer Chain',
+  'pendent': 'Pendant',
+  'neckset': 'Neck Set',
+  'nosering': 'Nose Ring',
+}
+const CATEGORY_ALIASES_LOWER: Record<string, string> = Object.fromEntries(
+  Object.entries(CATEGORY_ALIASES).map(([k, v]) => [k.toLowerCase(), v])
+)
+
+function titleCase(s: string): string {
+  return s.toLowerCase().split(' ').map(w => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ')
+}
+
+export function normalizeCategory(raw?: string | null): string {
+  if (!raw || !raw.trim()) return 'Other'
+  const trimmed = raw.trim()
+  const alias = CATEGORY_ALIASES_LOWER[trimmed.toLowerCase()]
+  if (alias) return alias
+  return titleCase(trimmed)
+}
+
+/**
+ * Groups a list of raw category strings (as they actually appear in the
+ * database) by their normalized/canonical name, so a dropdown can show
+ * "Bangles" once while a query filter can still match every raw spelling
+ * variant ("BANGLE", "bangles", ...) that rolls up to it.
+ */
+export function buildCategoryGroups(rawCategories: (string | null | undefined)[]): { canonical: string; raws: string[] }[] {
+  const map: Record<string, Set<string>> = {}
+  for (const raw of rawCategories) {
+    if (!raw) continue
+    const canon = normalizeCategory(raw)
+    if (!map[canon]) map[canon] = new Set()
+    map[canon].add(raw)
+  }
+  return Object.entries(map)
+    .map(([canonical, raws]) => ({ canonical, raws: [...raws] }))
+    .sort((a, b) => a.canonical.localeCompare(b.canonical))
+}

@@ -1,10 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { fetchAllRows } from '@/lib/supabase'
+import { fmt_inr, getAllMonths, parseDate, DATA_START } from '@/lib/utils'
 import { useBranch } from '@/lib/branch-context'
-import { fmt_inr, getAllMonths, getDateRange, parseDate, DATA_START, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
-import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -27,71 +26,69 @@ const Tip = ({ active, payload, label }: any) => {
 
 export default function ExpensesPage() {
   const { selectedBranch } = useBranch()
-  const [grain, setGrain] = useState<Grain>('month')
-  const [offset, setOffset] = useState(0)
-  const dateRange = getDateRange(grain, offset)
-
   const [rows, setRows] = useState<any[]>([])
+  const [months, setMonths] = useState<string[]>([])
   const [chartData, setChartData] = useState<any[]>([])
-  const [metrics, setMetrics] = useState({ total: 0, vendors: 0 })
+  const [metrics, setMetrics] = useState({ total: 0, avg: 0, highest: '', peak: 0, categories: 0 })
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      // Period-scoped vendor breakdown
+      const periods = getAllMonths()
+      const lbls = periods.map(p => p.label)
+      setMonths(lbls)
+
       const data = await fetchAllRows('expenses', 'date,vendor_name,gross_total', q => {
-        let qq = q.gte('date', dateRange.from).lte('date', dateRange.to)
+        let qq = q.gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0])
         if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
         return qq
       })
 
       const catMap: Record<string, any> = {}
+      const monthTotals: Record<string, number> = {}
+      lbls.forEach(l => { monthTotals[l] = 0 })
+
       for (const row of data) {
         const vendor = row.vendor_name || 'Other'
+        const lbl = format(parseDate(row.date), 'MMM yy')
         const amt = row.gross_total || 0
-        if (!catMap[vendor]) catMap[vendor] = { vendor, total: 0 }
+        if (!catMap[vendor]) catMap[vendor] = { vendor, months: {}, total: 0 }
+        catMap[vendor].months[lbl] = (catMap[vendor].months[lbl] || 0) + amt
         catMap[vendor].total += amt
+        if (monthTotals[lbl] !== undefined) monthTotals[lbl] += amt
       }
+
       const sorted = Object.values(catMap).sort((a:any,b:any)=>b.total-a.total).slice(0,15)
       setRows(sorted)
-      setMetrics({ total: data.reduce((s,r)=>s+(r.gross_total||0),0), vendors: sorted.length })
 
-      // Trend — fixed last-8-months context, independent of the period filter
-      const now = new Date()
-      const monthTotals: Record<string, number> = {}
-      const months8: string[] = []
-      for (let i=7;i>=0;i--) { const d = new Date(now.getFullYear(), now.getMonth()-i, 1); const lbl = format(d,'MMM yy'); months8.push(lbl); monthTotals[lbl]=0 }
-      const trendData8 = await fetchAllRows('expenses', 'date,gross_total', q => {
-        let qq = q.gte('date', DATA_START)
-        if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
-        return qq
-      })
-      for (const r of trendData8) {
-        const lbl = format(parseDate(r.date),'MMM yy')
-        if (monthTotals[lbl]!==undefined) monthTotals[lbl]+=r.gross_total||0
-      }
-      setChartData(months8.map(l=>({ label:l, total: monthTotals[l]||0 })).filter(p=>p.total>0))
+      const chartPts = lbls.map(l => ({ label: l, total: monthTotals[l]||0 })).filter(p=>p.total>0)
+      setChartData(chartPts)
+
+      const totalExp = Object.values(monthTotals).reduce((s:number,v:number)=>s+v,0)
+      const activeMonths = Object.values(monthTotals).filter((v:number)=>v>0).length
+      const peakMonth: any = chartPts.reduce((a:any,b:any)=>b.total>a.total?b:a, chartPts[0]||{label:'',total:0})
+      setMetrics({ total: totalExp, avg: activeMonths>0?totalExp/activeMonths:0, highest: peakMonth.label, peak: peakMonth.total, categories: sorted.length })
     } finally { setLoading(false) }
-  }, [dateRange.from, dateRange.to, selectedBranch])
+  }, [selectedBranch])
 
   useEffect(() => { load() }, [load])
 
   return (
     <div style={{ minHeight: '100%', background: '#f5f0e8' }}>
-      <PageHeader title="Expenses" subtitle="Vendor breakdown and monthly trend" />
+      <PageHeader title="Expenses" subtitle="All time category breakdown and monthly trends" />
       <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        <DateNav grain={grain} onGrainChange={setGrain} offset={offset} onOffsetChange={setOffset} label={dateRange.label} />
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-          <MetricCard label="Expenses" value={fmt_inr(metrics.total)} sub={dateRange.label} accent="purple" />
-          <MetricCard label="Vendors" value={`${metrics.vendors}`} sub="This period" accent="beige" />
-          <MetricCard label="Avg per Vendor" value={fmt_inr(metrics.vendors?metrics.total/metrics.vendors:0)} accent="beige" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+          <MetricCard label="All-time Expenses" value={fmt_inr(metrics.total)} accent="purple" />
+          <MetricCard label="Monthly Avg" value={fmt_inr(metrics.avg)} sub="Active months" accent="beige" />
+          <MetricCard label="Peak Month" value={metrics.highest} sub={fmt_inr(metrics.peak)} accent="amber" />
+          <MetricCard label="Vendors" value={`${metrics.categories}`} sub="Categories" accent="beige" />
         </div>
 
+        {/* Chart */}
         <div style={{ ...S.section, padding: 24 }}>
-          <h2 className="font-display" style={{ color: '#3b0764', fontSize: 18, margin: '0 0 20px' }}>Monthly Expense Trend — Last 8 Months</h2>
+          <h2 className="font-display" style={{ color: '#3b0764', fontSize: 18, margin: '0 0 20px' }}>Monthly Expense Trend</h2>
           {loading ? <div style={{ height: 220, background: '#f5f0e8', borderRadius: 12 }} /> : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chartData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
@@ -105,33 +102,56 @@ export default function ExpensesPage() {
           )}
         </div>
 
+        {/* MoM table */}
         <div style={S.section}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #e8d5b7' }}>
-            <h2 className="font-display" style={{ color: '#3b0764', fontSize: 18, margin: 0 }}>Top Vendors — {dateRange.label}</h2>
-            <p style={{ fontSize: 12, color: '#6b5b7b', marginTop: 4 }}>Top 15 vendors for the selected period</p>
+            <h2 className="font-display" style={{ color: '#3b0764', fontSize: 18, margin: 0 }}>Expense Categories — Month on Month</h2>
+            <p style={{ fontSize: 12, color: '#6b5b7b', marginTop: 4 }}>Top 15 vendors · all months · ▲ red = increase, ▼ green = decrease</p>
           </div>
           {loading ? <div style={{ height: 200, background: '#f5f0e8', margin: 16, borderRadius: 12 }} /> : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#3b0764' }}>
-                    <th style={{ ...S.th, background: '#3b0764', color: '#fff', textAlign: 'left' }}>Vendor</th>
-                    <th style={{ ...S.th, background: '#3b0764', color: '#fff', textAlign: 'right' }}>Amount</th>
+                    <th style={{ ...S.th, background: '#3b0764', color: '#fff', position: 'sticky', left: 0, minWidth: 180, textAlign: 'left' }}>Vendor / Category</th>
+                    {months.map(m => <th key={m} style={{ ...S.th, background: '#3b0764', color: '#fff', textAlign: 'right', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>{m}</th>)}
+                    <th style={{ ...S.th, background: '#4c1d95', color: '#fff', textAlign: 'right' }}>Total</th>
+                    <th style={{ ...S.th, background: '#4c1d95', color: '#fff', textAlign: 'right' }}>MoM</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row:any, i) => (
-                    <tr key={row.vendor} style={{ background: i%2===0?'#fff':'#faf8ff' }}>
-                      <td style={{ ...S.td, fontWeight: 600 }}>{row.vendor}</td>
-                      <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmt_inr(row.total)}</td>
-                    </tr>
-                  ))}
-                  {rows.length===0&&(
-                    <tr><td colSpan={2} style={{ ...S.td, textAlign:'center', color:'#6b5b7b', padding:24 }}>No expenses this period</td></tr>
-                  )}
+                  {rows.map((row: any, i) => {
+                    const vals = months.map(m => row.months[m]||0)
+                    const lastTwo = vals.slice(-2)
+                    const mom = lastTwo[0]>0 ? ((lastTwo[1]-lastTwo[0])/lastTwo[0]*100) : 0
+                    return (
+                      <tr key={row.vendor} style={{ background: i%2===0?'#fff':'#faf8ff' }}>
+                        <td style={{ ...S.td, fontWeight: 600, position: 'sticky', left: 0, background: i%2===0?'#fff':'#faf8ff', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.vendor}</td>
+                        {months.map((m, mi) => {
+                          const cur = row.months[m]||0, prv = mi>0?(row.months[months[mi-1]]||0):0
+                          const chg = prv>0?(cur-prv)/prv*100:0
+                          return (
+                            <td key={m} style={{ ...S.td, textAlign: 'right' }}>
+                              <div style={{ fontWeight: 500 }}>{cur>0?fmt_inr(cur):'—'}</div>
+                              {mi>0&&cur>0&&prv>0&&<div style={{ fontSize: 10, fontWeight: 700, color: chg>=0?'#dc2626':'#059669' }}>{chg>=0?'▲':'▼'} {Math.abs(chg).toFixed(0)}%</div>}
+                            </td>
+                          )
+                        })}
+                        <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmt_inr(row.total)}</td>
+                        <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: mom>=0?'#dc2626':'#059669' }}>
+                          {mom!==0?`${mom>=0?'▲':'▼'} ${Math.abs(mom).toFixed(1)}%`:'—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
                   <tr style={{ background: '#f5f0ff', borderTop: '2px solid #7c3aed' }}>
-                    <td style={{ ...S.td, fontWeight: 700, color: '#3b0764' }}>TOTAL</td>
-                    <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmt_inr(metrics.total)}</td>
+                    <td style={{ ...S.td, fontWeight: 700, color: '#3b0764', position: 'sticky', left: 0, background: '#f5f0ff' }}>TOTAL</td>
+                    {months.map(m => {
+                      const tot = rows.reduce((s:number,r:any)=>s+(r.months[m]||0),0)
+                      return <td key={m} style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{tot>0?fmt_inr(tot):'—'}</td>
+                    })}
+                    <td style={{ ...S.td, textAlign: 'right', fontWeight: 700 }}>{fmt_inr(rows.reduce((s:number,r:any)=>s+r.total,0))}</td>
+                    <td style={S.td} />
                   </tr>
                 </tbody>
               </table>

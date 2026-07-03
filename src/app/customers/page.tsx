@@ -9,6 +9,7 @@ import DateNav from '@/components/ui/DateNav'
 import OrderModal from '@/components/ui/OrderModal'
 import ProductModal, { type ProductHint } from '@/components/ui/ProductModal'
 import { useBranch } from '@/lib/branch-context'
+import { useDateRange } from '@/lib/date-range-context'
 import { Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -19,8 +20,10 @@ const S = {
   td: { padding:'10px 12px', fontSize:12, color:'#1a0a2e', borderBottom:'1px solid #f0e8d8' },
 }
 const PURPLE = ['#3b0764','#6d28d9','#7c3aed','#a78bfa','#c4b5fd']
+const BUCKET_TEST: Record<string, (v:number)=>boolean> = {
+  '1 visit': v=>v===1, '2 visits': v=>v===2, '3-5 visits': v=>v>=3&&v<=5, '6-10 visits': v=>v>=6&&v<=10, '10+ visits': v=>v>10,
+}
 
-// Clickable name button — used for customer names anywhere in this page
 function NameLink({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <button onClick={onClick} style={{ background:'none', border:'none', padding:0, margin:0, font:'inherit', fontWeight:600, color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd', textUnderlineOffset:2 }}>
@@ -29,7 +32,6 @@ function NameLink({ children, onClick }: { children: React.ReactNode; onClick: (
   )
 }
 
-// Clickable order/voucher number — opens the order detail modal
 function OrderLink({ voucherNo, onClick }: { voucherNo: string; onClick: () => void }) {
   return (
     <button onClick={onClick} style={{ background:'none', border:'none', padding:0, margin:0, font:'inherit', fontWeight:600, color:'#7c3aed', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd', textUnderlineOffset:2 }}>
@@ -43,7 +45,6 @@ function CustomersInner() {
   const searchParams = useSearchParams()
   const deepDiveRef = useRef<HTMLDivElement>(null)
 
-  // Deep dive state
   const [search, setSearch] = useState('')
   const [options, setOptions] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
@@ -54,22 +55,21 @@ function CustomersInner() {
   const [orderVoucher, setOrderVoucher] = useState<string | null>(null)
 
   // Insights state
+  const [allCustomers, setAllCustomers] = useState<any[]>([])
   const [freqData, setFreqData] = useState<any[]>([])
-  const [topSpend, setTopSpend] = useState<any[]>([])
-  const [topFreq, setTopFreq] = useState<any[]>([])
   const [insightMetrics, setInsightMetrics] = useState({ total:0, returning:0, single:0, repeat_pct:0, avg_spend:0, top_spend:0 })
   const [insightsLoading, setInsightsLoading] = useState(false)
-  const [iGrain, setIGrain] = useState<Grain>('month')
-  const [iOffset, setIOffset] = useState(0)
+  const { grain: iGrain, offset: iOffset, setGrain: setIGrain, setOffset: setIOffset } = useDateRange()
   const iRange = getDateRange(iGrain, iOffset)
   const [productItemCode, setProductItemCode] = useState<string|null>(null)
   const [productHint, setProductHint] = useState<ProductHint|undefined>(undefined)
+  const [selectedBucket, setSelectedBucket] = useState<string | null>(null)
 
-  // Load insights — scoped to the selected period (all customers who
-  // visited within iRange, not an all-time view)
+  // Load insights — scoped to the selected period
   useEffect(() => {
     const load = async () => {
       setInsightsLoading(true)
+      setSelectedBucket(null)
       try {
         const sales = await fetchAllRows('sales', 'voucher_no,customer_name,mobile_no,net_amount,profit,qty,date', q => {
           let qq = q.gte('date', iRange.from).lte('date', iRange.to)
@@ -78,7 +78,7 @@ function CustomersInner() {
         })
         if (!sales.length) {
           setInsightMetrics({ total:0, returning:0, single:0, repeat_pct:0, avg_spend:0, top_spend:0 })
-          setFreqData([]); setTopSpend([]); setTopFreq([])
+          setFreqData([]); setAllCustomers([])
           return
         }
 
@@ -94,6 +94,7 @@ function CustomersInner() {
           if (r.date > map[key].last_visit) map[key].last_visit = r.date
         }
         const cust = Object.values(map).map((c:any)=>({ ...c, visit_count: c.vouchers.size })).sort((a:any,b:any)=>b.total_spend-a.total_spend)
+        setAllCustomers(cust)
 
         const total = cust.length
         const returning = cust.filter((c:any)=>c.visit_count>1).length
@@ -111,13 +112,17 @@ function CustomersInner() {
           else freqMap['10+ visits']++
         }
         setFreqData(Object.entries(freqMap).map(([name,count])=>({name,count,pct:total?+(count/total*100).toFixed(1):0})))
-        setTopSpend(cust.slice(0,10))
-        const byFreq = [...cust].sort((a:any,b:any)=>b.visit_count-a.visit_count).slice(0,10)
-        setTopFreq(byFreq)
       } finally { setInsightsLoading(false) }
     }
     load()
   }, [iRange.from, iRange.to, selectedBranch])
+
+  // Derived tables — recomputed instantly from allCustomers, no re-fetch needed
+  const topFreq = (selectedBucket
+    ? [...allCustomers].filter(c=>BUCKET_TEST[selectedBucket]?.(c.visit_count)).sort((a,b)=>b.visit_count-a.visit_count)
+    : [...allCustomers].sort((a,b)=>b.visit_count-a.visit_count)
+  ).slice(0, selectedBucket ? undefined : 10)
+  const topSpend = allCustomers.slice(0,10)
 
   // Customer search suggestions
   useEffect(() => {
@@ -157,7 +162,6 @@ function CustomersInner() {
     } finally { setLoadingSearch(false) }
   }, [])
 
-  // Jump here from a customer name clicked anywhere on this page (or via ?name=&mobile= from another page)
   const jumpToCustomer = useCallback((name: string, mobile?: string) => {
     if (!name) return
     const cust = { name, mobile: mobile||'', display: mobile ? `${name} — ${mobile}` : name }
@@ -165,7 +169,6 @@ function CustomersInner() {
     setTimeout(() => deepDiveRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 60)
   }, [loadCustomer])
 
-  // Auto-load a customer if the page was opened with ?name=&mobile= (e.g. clicked from Overview)
   useEffect(() => {
     const name = searchParams.get('name')
     if (name) jumpToCustomer(name, searchParams.get('mobile') || undefined)
@@ -208,20 +211,21 @@ function CustomersInner() {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
           <div style={{ ...S.section, padding:24 }}>
             <h2 className="font-display" style={{ color:'#3b0764', fontSize:16, margin:'0 0 16px' }}>Visit Frequency Distribution</h2>
+            <p style={{ fontSize:11, color:'#6b5b7b', margin:'-12px 0 12px' }}>Click a bar to filter the table beside it</p>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={freqData} margin={{ top:4,right:8,left:0,bottom:0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e8d5b7"/>
                 <XAxis dataKey="name" tick={{ fontSize:10,fill:'#6b5b7b' }} axisLine={false} tickLine={false}/>
                 <YAxis tick={{ fontSize:10,fill:'#6b5b7b' }} axisLine={false} tickLine={false}/>
                 <Tooltip content={<Tip/>}/>
-                <Bar dataKey="count" name="Customers" radius={[4,4,0,0]}>
-                  {freqData.map((_,i)=><Cell key={i} fill={PURPLE[i%PURPLE.length]}/>)}
+                <Bar dataKey="count" name="Customers" radius={[4,4,0,0]} cursor="pointer" onClick={(d:any)=>setSelectedBucket(prev=>prev===d.name?null:d.name)}>
+                  {freqData.map((d,i)=><Cell key={i} fill={PURPLE[i%PURPLE.length]} opacity={selectedBucket&&selectedBucket!==d.name?0.35:1}/>)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
             <div style={{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' }}>
               {freqData.map((d,i)=>(
-                <div key={d.name} style={{ background:'#f5f0e8', borderRadius:8, padding:'6px 10px', textAlign:'center', flex:1 }}>
+                <div key={d.name} onClick={()=>setSelectedBucket(prev=>prev===d.name?null:d.name)} style={{ cursor:'pointer', background:selectedBucket===d.name?'#ede9ff':'#f5f0e8', border:selectedBucket===d.name?'1px solid #7c3aed':'1px solid transparent', borderRadius:8, padding:'6px 10px', textAlign:'center', flex:1 }}>
                   <p style={{ fontSize:16, fontWeight:700, color:PURPLE[i%PURPLE.length], margin:0 }}>{d.pct}%</p>
                   <p style={{ fontSize:9, color:'#6b5b7b', margin:'2px 0 0' }}>{d.name}</p>
                 </div>
@@ -230,33 +234,41 @@ function CustomersInner() {
           </div>
 
           <div style={S.section}>
-            <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7' }}>
-              <h2 className="font-display" style={{ color:'#3b0764', fontSize:16, margin:0 }}>Most Frequent Customers</h2>
-              <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>By number of visits · click a name to open their deep dive below</p>
+            <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+              <div>
+                <h2 className="font-display" style={{ color:'#3b0764', fontSize:16, margin:0 }}>{selectedBucket?`Customers — ${selectedBucket}`:'Most Frequent Customers'}</h2>
+                <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{selectedBucket?`${topFreq.length} customers in this bucket`:'By number of visits'} · click a name to open their deep dive below</p>
+              </div>
+              {selectedBucket&&<button onClick={()=>setSelectedBucket(null)} style={{ padding:'4px 10px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:11, cursor:'pointer', color:'#6b5b7b' }}>Clear ×</button>}
             </div>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-              <thead><tr>{['Rank','Customer','Phone','Visits','Total Spend'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
-              <tbody>
-                {topFreq.map((c,i)=>(
-                  <tr key={c.mobile_no} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
-                    <td style={{ ...S.td, fontWeight:700, color:i<3?'#f59e0b':'#6b5b7b', textAlign:'center' }}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</td>
-                    <td style={S.td}><NameLink onClick={()=>jumpToCustomer(c.customer_name, c.mobile_no)}>{c.customer_name}</NameLink></td>
-                    <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:11 }}>{c.mobile_no}</td>
-                    <td style={{ ...S.td, textAlign:'center' }}>
-                      <span style={{ padding:'2px 8px', borderRadius:20, fontWeight:700, fontSize:11, background:'#ede9ff', color:'#3b0764' }}>{c.visit_count}×</span>
-                    </td>
-                    <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#3b0764' }}>{fmt_inr(c.total_spend)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ maxHeight:340, overflowY:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead><tr>{['Rank','Customer','Phone','Visits','Total Spend'].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {topFreq.map((c,i)=>(
+                    <tr key={c.mobile_no||c.customer_name+i} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
+                      <td style={{ ...S.td, fontWeight:700, color:i<3?'#f59e0b':'#6b5b7b', textAlign:'center' }}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</td>
+                      <td style={S.td}><NameLink onClick={()=>jumpToCustomer(c.customer_name, c.mobile_no)}>{c.customer_name}</NameLink></td>
+                      <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:11 }}>{c.mobile_no}</td>
+                      <td style={{ ...S.td, textAlign:'center' }}>
+                        <span style={{ padding:'2px 8px', borderRadius:20, fontWeight:700, fontSize:11, background:'#ede9ff', color:'#3b0764' }}>{c.visit_count}×</span>
+                      </td>
+                      <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#3b0764' }}>{fmt_inr(c.total_spend)}</td>
+                    </tr>
+                  ))}
+                  {topFreq.length===0&&(
+                    <tr><td colSpan={5} style={{ ...S.td, textAlign:'center', color:'#6b5b7b', padding:24 }}>No customers in this bucket</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
         <div style={S.section}>
           <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7' }}>
             <h2 className="font-display" style={{ color:'#3b0764', fontSize:16, margin:0 }}>Top Customers by Lifetime Spend</h2>
-            <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>All time · customers with registered phone numbers · click a name to open their deep dive below</p>
+            <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{iRange.label} · customers with registered phone numbers · click a name to open their deep dive below</p>
           </div>
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
@@ -265,7 +277,7 @@ function CustomersInner() {
                 {topSpend.map((c,i)=>{
                   const m = c.total_spend>0?c.total_profit/c.total_spend*100:0
                   return (
-                    <tr key={c.mobile_no} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
+                    <tr key={c.mobile_no||c.customer_name+i} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                       <td style={{ ...S.td, fontWeight:700, color:i<3?'#f59e0b':'#6b5b7b', textAlign:'center' }}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</td>
                       <td style={S.td}><NameLink onClick={()=>jumpToCustomer(c.customer_name, c.mobile_no)}>{c.customer_name}</NameLink></td>
                       <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:11 }}>{c.mobile_no}</td>
