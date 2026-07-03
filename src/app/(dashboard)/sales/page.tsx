@@ -10,7 +10,6 @@ import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import ProductCard from '@/components/inventory/ProductCard'
 import OrderModal from '@/components/ui/OrderModal'
-import ProductModal, { type ProductHint } from '@/components/ui/ProductModal'
 import BillsListModal from '@/components/ui/BillsListModal'
 import CustomersListModal from '@/components/ui/CustomersListModal'
 import { format, startOfWeek } from 'date-fns'
@@ -121,7 +120,7 @@ export default function SalesPage() {
       const codes = Object.keys(agg)
 
       const { data: inv } = await supabase.from('inventory_with_cost')
-        .select('item_code,image_url,qty,synced_at,cost_per_unit').in('item_code', codes.slice(0,500))
+        .select('item_code,image_url,qty,synced_at,cost_per_unit,product_id').in('item_code', codes.slice(0,500))
       const { data: purch } = await supabase.from('purchases')
         .select('item_code,supplier_name').in('item_code', codes.slice(0,500)).limit(2000)
 
@@ -134,6 +133,7 @@ export default function SalesPage() {
         qty_remaining: invMap[i.item_code]?.qty ?? 0,
         vendor:       venMap[i.item_code],
         landing_cost: i.landing_cost || invMap[i.item_code]?.cost_per_unit || 0,
+        product_id:   invMap[i.item_code]?.product_id,
       })).sort((a:any,b:any) => b.revenue - a.revenue)
 
       setSoldItems(items)
@@ -156,8 +156,6 @@ export default function SalesPage() {
 
   // ── Modals ───────────────────────────────────────────────────────────────
   const [orderVoucher, setOrderVoucher] = useState<string|null>(null)
-  const [productItemCode, setProductItemCode] = useState<string|null>(null)
-  const [productHint, setProductHint] = useState<ProductHint|undefined>(undefined)
   const [showBills, setShowBills] = useState(false)
   const [showCustomers, setShowCustomers] = useState(false)
 
@@ -237,7 +235,7 @@ export default function SalesPage() {
             ) : (
               <>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
-                  {pageItems.map(item=><ProductCard key={item.item_code} {...item} onProductClick={(code,hint)=>{setProductItemCode(code);setProductHint(hint)}}/>)}
+                  {pageItems.map(item=><ProductCard key={item.item_code} {...item}/>)}
                 </div>
                 {totalPages>1&&(
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, paddingTop:8 }}>
@@ -253,7 +251,6 @@ export default function SalesPage() {
       </div>
 
       {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)} />}
-      {productItemCode && <ProductModal itemCode={productItemCode} hint={productHint} onClose={()=>{setProductItemCode(null);setProductHint(undefined)}} />}
       {showBills && <BillsListModal from={dateRange.from} to={dateRange.to} label={dateRange.label} branchId={selectedBranch} onClose={()=>setShowBills(false)} onOpenOrder={(v)=>{setShowBills(false);setOrderVoucher(v)}} />}
       {showCustomers && <CustomersListModal from={dateRange.from} to={dateRange.to} label={dateRange.label} branchId={selectedBranch} onClose={()=>setShowCustomers(false)} />}
     </div>

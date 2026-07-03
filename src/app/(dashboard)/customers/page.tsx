@@ -2,12 +2,11 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase, fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, fmt_pct, DATA_START, parseDate, getDateRange, type Grain } from '@/lib/utils'
+import { fmt_inr, fmt_num, fmt_pct, DATA_START, parseDate, getDateRange, vasyErpProductUrl, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
 import DateNav from '@/components/ui/DateNav'
 import OrderModal from '@/components/ui/OrderModal'
-import ProductModal, { type ProductHint } from '@/components/ui/ProductModal'
 import { useBranch } from '@/lib/branch-context'
 import { useDateRange } from '@/lib/date-range-context'
 import { Search } from 'lucide-react'
@@ -61,8 +60,6 @@ function CustomersInner() {
   const [insightsLoading, setInsightsLoading] = useState(false)
   const { grain: iGrain, offset: iOffset, setGrain: setIGrain, setOffset: setIOffset } = useDateRange()
   const iRange = getDateRange(iGrain, iOffset)
-  const [productItemCode, setProductItemCode] = useState<string|null>(null)
-  const [productHint, setProductHint] = useState<ProductHint|undefined>(undefined)
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null)
 
   // Load insights — scoped to the selected period
@@ -123,6 +120,11 @@ function CustomersInner() {
     : [...allCustomers].sort((a,b)=>b.visit_count-a.visit_count)
   ).slice(0, selectedBucket ? undefined : 10)
   const topSpend = allCustomers.slice(0,10)
+
+  const openErp = (productId?: string) => {
+    const url = vasyErpProductUrl(productId)
+    if (url) window.open(url, '_blank', 'noopener,noreferrer')
+  }
 
   // Customer search suggestions
   useEffect(() => {
@@ -260,6 +262,15 @@ function CustomersInner() {
                     <tr><td colSpan={5} style={{ ...S.td, textAlign:'center', color:'#6b5b7b', padding:24 }}>No customers in this bucket</td></tr>
                   )}
                 </tbody>
+                {topFreq.length>0&&(
+                  <tfoot>
+                    <tr style={{ background:'#f5f0ff', borderTop:'2px solid #7c3aed', position:'sticky', bottom:0 }}>
+                      <td colSpan={3} style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>TOTAL ({topFreq.length})</td>
+                      <td style={{ ...S.td, textAlign:'center', fontWeight:700 }}>{topFreq.reduce((s,c)=>s+c.visit_count,0)}×</td>
+                      <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#3b0764' }}>{fmt_inr(topFreq.reduce((s,c)=>s+c.total_spend,0))}</td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
@@ -294,6 +305,20 @@ function CustomersInner() {
                   )
                 })}
               </tbody>
+              {topSpend.length>0&&(
+                <tfoot>
+                  <tr style={{ background:'#f5f0ff', borderTop:'2px solid #7c3aed' }}>
+                    <td colSpan={3} style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>TOTAL ({topSpend.length})</td>
+                    <td style={{ ...S.td, textAlign:'center', fontWeight:700 }}>{topSpend.reduce((s:number,c:any)=>s+c.visit_count,0)}×</td>
+                    <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#3b0764' }}>{fmt_inr(topSpend.reduce((s:number,c:any)=>s+c.total_spend,0))}</td>
+                    <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#059669' }}>{fmt_inr(topSpend.reduce((s:number,c:any)=>s+c.total_profit,0))}</td>
+                    <td style={S.td}></td>
+                    <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#6b5b7b' }}>{fmt_num(topSpend.reduce((s:number,c:any)=>s+c.total_units,0))}</td>
+                    <td style={S.td}></td>
+                    <td style={S.td}></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
@@ -383,6 +408,19 @@ function CustomersInner() {
                           )
                         })}
                       </tbody>
+                      {bills.length>0&&(
+                        <tfoot>
+                          <tr style={{ background:'#f5f0ff', borderTop:'2px solid #7c3aed' }}>
+                            <td colSpan={4} style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>TOTAL ({bills.length} bills)</td>
+                            <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_num(bills.reduce((s,b)=>s+b.items,0))}</td>
+                            <td style={S.td}></td>
+                            <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_inr(totalSpend)}</td>
+                            <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#d97706' }}>{fmt_inr(totalDisc)}</td>
+                            <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#059669' }}>{fmt_inr(totalProfit)}</td>
+                            <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_pct(margin)}</td>
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 </div>
@@ -404,8 +442,8 @@ function CustomersInner() {
                             <tr key={`${l.voucher_no}-${l.item_code}-${i}`} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{format(parseDate(l.date),'dd MMM yy')}</td>
                               <td style={S.td}><OrderLink voucherNo={l.voucher_no} onClick={()=>setOrderVoucher(l.voucher_no)}/></td>
-                              <td onClick={()=>{setProductItemCode(l.item_code);setProductHint({product_name:l.product_name,category:l.category,brand:l.brand,mrp:l.mrp,landing_cost:l.landing_cost})}} style={{ ...S.td, fontFamily:'monospace', color:'#3b0764', fontSize:10, cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.item_code}</td>
-                              <td onClick={()=>{setProductItemCode(l.item_code);setProductHint({product_name:l.product_name,category:l.category,brand:l.brand,mrp:l.mrp,landing_cost:l.landing_cost})}} style={{ ...S.td, fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.product_name}</td>
+                              <td onClick={()=>openErp(l.product_id)} title="Open in VasyERP" style={{ ...S.td, fontFamily:'monospace', color:'#3b0764', fontSize:10, cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.item_code}</td>
+                              <td onClick={()=>openErp(l.product_id)} title="Open in VasyERP" style={{ ...S.td, fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.product_name}</td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{l.category}</td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{l.brand}</td>
                               <td style={{ ...S.td, textAlign:'right' }}>{l.qty}</td>
@@ -416,6 +454,17 @@ function CustomersInner() {
                           )
                         })}
                       </tbody>
+                      {lines.length>0&&(
+                        <tfoot>
+                          <tr style={{ background:'#f5f0ff', borderTop:'2px solid #7c3aed' }}>
+                            <td colSpan={6} style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>TOTAL ({lines.length} items)</td>
+                            <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_num(lines.reduce((s,l)=>s+(l.qty||0),0))}</td>
+                            <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#6b5b7b' }}>{fmt_inr(lines.reduce((s,l)=>s+(l.landing_cost||0),0))}</td>
+                            <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_inr(lines.reduce((s,l)=>s+(l.net_amount||0),0))}</td>
+                            <td style={S.td}></td>
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 </div>
@@ -426,7 +475,6 @@ function CustomersInner() {
       </div>
 
       {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)} />}
-      {productItemCode && <ProductModal itemCode={productItemCode} hint={productHint} onClose={()=>{setProductItemCode(null);setProductHint(undefined)}} />}
     </div>
   )
 }

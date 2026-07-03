@@ -180,3 +180,16 @@ export function buildCategoryGroups(rawCategories: (string | null | undefined)[]
     .map(([canonical, raws]) => ({ canonical, raws: [...raws] }))
     .sort((a, b) => a.canonical.localeCompare(b.canonical))
 }
+
+
+/**
+ * Every product in VasyERP has a stable numeric product_id, exposed on
+ * https://srivaruni.vasyerp.com/product/{product_id} — this is 100%
+ * populated (unlike MRP, which is missing on ~99.7% of the catalog), so
+ * it's the reliable way to let someone jump straight to the real ERP
+ * record for a product instead of us guessing at pricing.
+ */
+export function vasyErpProductUrl(productId?: string | number | null): string | null {
+  if (!productId) return null
+  return `https://srivaruni.vasyerp.com/product/${productId}`
+}

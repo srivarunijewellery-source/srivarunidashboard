@@ -1,19 +1,20 @@
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { fetchAllRows } from '@/lib/supabase'
-import { fmt_inr, fmt_num, getDateRange, normalizeCategory, buildCategoryGroups } from '@/lib/utils'
+import { fmt_inr, fmt_num, getDateRange, normalizeCategory, buildCategoryGroups, vasyErpProductUrl } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import HoverImage from '@/components/ui/HoverImage'
-import ProductModal, { type ProductHint } from '@/components/ui/ProductModal'
 import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import { useBranch } from '@/lib/branch-context'
 import { useDateRange } from '@/lib/date-range-context'
+import { ExternalLink } from 'lucide-react'
 
 const S = {
   section: { background:'#fff', borderRadius:16, border:'1px solid #e8d5b7', boxShadow:'0 2px 8px rgba(59,7,100,0.07)', overflow:'hidden' },
   th: { padding:'8px 10px', fontSize:10, fontWeight:700, color:'#6b5b7b', textTransform:'uppercase' as const, letterSpacing:0.5, background:'#f5f0e8', border:'1px solid #e8d5b7', whiteSpace:'nowrap' as const },
   td: { padding:'6px 10px', fontSize:12, color:'#1a0a2e', border:'1px solid #f0e8d8', whiteSpace:'nowrap' as const },
+  totalTd: { padding:'6px 10px', fontSize:12, color:'#3b0764', border:'1px solid #e8d5b7', whiteSpace:'nowrap' as const, fontWeight:700, background:'#f5f0ff' },
 }
 const DRILL_PAGE_SIZE = 30
 
@@ -24,58 +25,28 @@ function stockValueOf(p: any): number {
   return p.stock_value ?? (p.cost_per_unit ?? 0) * (p.qty ?? 0)
 }
 
+function openInErp(productId?: string) {
+  const url = vasyErpProductUrl(productId)
+  if (url) window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 export default function InventoryPage() {
   const { selectedBranch } = useBranch()
-  const [productItemCode, setProductItemCode] = useState<string|null>(null)
-  const [productHint, setProductHint] = useState<ProductHint|undefined>(undefined)
   const [drillKey, setDrillKey] = useState<{cat:string;brand:string}|null>(null)
   const [drillPage, setDrillPage] = useState(0)
 
   // ── Single source of truth for all in-stock inventory ──────────────────
-  // Pivot table, drill-down, and the Category/Brand cut's "in stock" figure
-  // all derive from this ONE fully-paginated fetch (fetchAllRows bypasses
-  // Supabase's ~1000-row response cap), so they can't disagree with each
-  // other. Note: this view is per PURCHASE BATCH, not per product — the
-  // same item_code can appear as more than one row if it has multiple
-  // batches in stock. Aggregated by item_code below wherever a "list of
-  // products" is shown, so each product appears exactly once.
   const [allInventory, setAllInventory] = useState<any[]>([])
   const [invLoading, setInvLoading] = useState(false)
 
   const loadInventory = useCallback(async () => {
     setInvLoading(true)
     try {
-      const data = await fetchAllRows('inventory_with_cost', 'item_code,product_name,category,brand,qty,mrp,cost_per_unit,stock_value,image_url', q => q.gt('qty', 0))
+      const data = await fetchAllRows('inventory_with_cost', 'item_code,product_name,category,brand,qty,cost_per_unit,stock_value,image_url,product_id', q => q.gt('qty', 0))
       setAllInventory(data)
     } finally { setInvLoading(false) }
   }, [])
   useEffect(() => { loadInventory() }, [loadInventory])
-
-  // MRP fallback, three tiers — the ERP's product catalog export has MRP
-  // populated on only ~0.3% of products (a genuine gap in the source
-  // data, not something wrong on our side):
-  //   1. Catalog MRP (products.mrp) — used as-is when present.
-  //   2. This item's own most recent sale MRP — real, item-specific.
-  //   3. Average sale MRP across the item's category+brand — a rough
-  //      estimate for items that have never sold themselves, used only
-  //      when tiers 1-2 are unavailable, and always labeled distinctly.
-  const [salesMrpMap, setSalesMrpMap] = useState<Record<string, number>>({})
-  const [categoryBrandAvgMrp, setCategoryBrandAvgMrp] = useState<Record<string, number>>({})
-  useEffect(() => {
-    fetchAllRows('sales', 'item_code,category,brand,mrp,date', q => q.gt('mrp', 0)).then(data => {
-      const latest: Record<string, { mrp: number; date: string }> = {}
-      const groupSums: Record<string, { sum: number; n: number }> = {}
-      for (const r of data) {
-        if (!latest[r.item_code] || r.date > latest[r.item_code].date) latest[r.item_code] = { mrp: r.mrp, date: r.date }
-        const groupKey = `${normalizeCategory(r.category)}||${r.brand || 'Unknown'}`
-        if (!groupSums[groupKey]) groupSums[groupKey] = { sum: 0, n: 0 }
-        groupSums[groupKey].sum += r.mrp
-        groupSums[groupKey].n += 1
-      }
-      setSalesMrpMap(Object.fromEntries(Object.entries(latest).map(([k, v]) => [k, v.mrp])))
-      setCategoryBrandAvgMrp(Object.fromEntries(Object.entries(groupSums).map(([k, v]) => [k, Math.round(v.sum / v.n)])))
-    })
-  }, [])
 
   // Category rationalization — the ERP has near-duplicate spellings
   // ("BANGLE" vs "bangles", "mang tika" vs "Maang Tikka", "Short Haram" vs
@@ -97,33 +68,20 @@ export default function InventoryPage() {
       map[key].qty += p.qty ?? 0
       map[key].stock_value += stockValueOf(p)
       map[key]._batches += 1
-      // Keep the highest-mrp / most-complete-looking record's descriptive fields
       if (!map[key].image_url && p.image_url) map[key].image_url = p.image_url
-      if (!map[key].mrp && p.mrp) map[key].mrp = p.mrp
-    }
-    for (const key of Object.keys(map)) {
-      if (!map[key].mrp && salesMrpMap[key]) {
-        map[key].mrp = salesMrpMap[key]
-        map[key].mrp_estimated = true
-      } else if (!map[key].mrp) {
-        const groupKey = `${map[key].category}||${map[key].brand || 'Unknown'}`
-        if (categoryBrandAvgMrp[groupKey]) {
-          map[key].mrp = categoryBrandAvgMrp[groupKey]
-          map[key].mrp_estimated = true
-          map[key].mrp_is_group_avg = true
-        }
-      }
     }
     return Object.values(map)
-  }, [allInventory, salesMrpMap, categoryBrandAvgMrp])
+  }, [allInventory])
 
-  const { rows: pivotRows, brands: pivotBrands } = useMemo(() => {
+  const { rows: pivotRows, brands: pivotBrands, grandTotal } = useMemo(() => {
     const map: Record<string, any> = {}
     const brandTotals: Record<string, number> = {}
+    const grand = { qty:0, value:0 }
     for (const p of productsByItemCode) {
       const cat = p.category
       const br = p.brand || 'Unknown'
       brandTotals[br] = (brandTotals[br] || 0) + p.qty
+      grand.qty += p.qty; grand.value += p.stock_value
       if (!map[cat]) map[cat] = { category:cat, total:{qty:0,value:0}, brands:{} }
       map[cat].total.qty += p.qty
       map[cat].total.value += p.stock_value
@@ -131,13 +89,11 @@ export default function InventoryPage() {
       map[cat].brands[br].qty += p.qty
       map[cat].brands[br].value += p.stock_value
     }
-    // Rows (categories) sorted top-to-bottom by total qty, highest first.
-    // Columns (brands) sorted left-to-right by their OWN overall total qty
-    // (summed across every category), highest first — so the table reads
-    // as "biggest categories on top, biggest brands on the left" both ways.
     return {
       rows: Object.values(map).sort((a:any,b:any)=>b.total.qty-a.total.qty),
       brands: Object.keys(brandTotals).sort((a,b)=>brandTotals[b]-brandTotals[a]),
+      grandTotal: grand,
+      brandTotals,
     }
   }, [productsByItemCode])
 
@@ -246,12 +202,12 @@ export default function InventoryPage() {
 
         <div>
           <h2 className="font-display" style={{ fontSize:18, color:'#3b0764', margin:0 }}>Stock Snapshot — Category × Brand</h2>
-          <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Click any cell for the product list · one row per product (multi-batch items summed) · Sold items are on the Sales → Details page</p>
+          <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Click any cell for the product list · one row per product (multi-batch items summed) · click a product to open it in VasyERP</p>
         </div>
 
         {invLoading?<div style={{ height:200, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>:(
           <div style={S.section}>
-            <div style={{ overflow:'auto', maxHeight:420 }}>
+            <div style={{ overflow:'auto', maxHeight:460 }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, border:'1px solid #e8d5b7' }}>
                 <thead>
                   <tr style={{ background:'#3b0764' }}>
@@ -279,6 +235,25 @@ export default function InventoryPage() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <td style={{ ...S.totalTd, position:'sticky', left:0 }}>TOTAL (ALL CATEGORIES)</td>
+                    <td style={{ ...S.totalTd, textAlign:'right' }}>
+                      <span>{fmt_num(grandTotal.qty)}</span>
+                      <span style={{ fontSize:10 }}> · {grandTotal.value>0?fmt_inr(grandTotal.value):'—'}</span>
+                    </td>
+                    {pivotBrands.map(b=>{
+                      const bt = pivotRows.reduce((s:number,row:any)=>s+(row.brands[b]?.qty||0),0)
+                      const bv = pivotRows.reduce((s:number,row:any)=>s+(row.brands[b]?.value||0),0)
+                      return (
+                        <td key={b} style={{ ...S.totalTd, textAlign:'right' }}>
+                          <span>{fmt_num(bt)}</span>
+                          <span style={{ fontSize:10 }}> · {bv>0?fmt_inr(bv):'—'}</span>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -292,7 +267,7 @@ export default function InventoryPage() {
                   {drillKey.cat==='ALL'?'All Products':drillKey.brand==='ALL'?drillKey.cat:`${drillKey.cat} — ${drillKey.brand}`}
                 </h3>
                 <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>
-                  {drillItems.length} products · {fmt_num(drillTotals.qty)} units · {fmt_inr(drillTotals.value)} · click a name or barcode for full detail
+                  {drillItems.length} products · {fmt_num(drillTotals.qty)} units · {fmt_inr(drillTotals.value)} · click a product to open it in VasyERP
                 </p>
               </div>
               <button onClick={()=>setDrillKey(null)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>
@@ -301,9 +276,9 @@ export default function InventoryPage() {
               <div style={{ padding:32, textAlign:'center', color:'#6b5b7b', fontSize:13 }}>No products match this selection.</div>
             ) : (
             <>
-            <div style={{ overflow:'auto', maxHeight:420 }}>
+            <div style={{ overflow:'auto', maxHeight:460 }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, border:'1px solid #e8d5b7' }}>
-                <thead><tr>{['Product','Barcode','Category','Brand','Stock','MRP','Cost/Unit','Stock Value'].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
+                <thead><tr>{['Product','Barcode','Category','Brand','Stock','Cost/Unit','Stock Value',''].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
                 <tbody>
                   {drillPageItems.map((item:any,i:number)=>(
                     <tr key={item.item_code} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
@@ -312,7 +287,7 @@ export default function InventoryPage() {
                           <HoverImage src={item.image_url} alt={item.product_name} previewSize={280}
                             wrapperStyle={{ width:28, height:28, borderRadius:6, border:'1px solid #e8d5b7', flexShrink:0 }}
                             style={{ width:28, height:28, borderRadius:6 }} />
-                          <span onClick={()=>{setProductItemCode(item.item_code);setProductHint({product_name:item.product_name,category:item.category,brand:item.brand,mrp:item.mrp,landing_cost:item.cost_per_unit,image_url:item.image_url})}}
+                          <span onClick={()=>openInErp(item.product_id)}
                             style={{ fontWeight:600, color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd', overflow:'hidden', textOverflow:'ellipsis', maxWidth:220 }}>{item.product_name?.slice(0,40)}</span>
                         </div>
                       </td>
@@ -320,12 +295,25 @@ export default function InventoryPage() {
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
                       <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b'}}> ({item._batches} batches)</span>:''}</td>
-                      <td style={{ ...S.td, textAlign:'right' }}>{item.mrp>0?fmt_inr(item.mrp):'—'}{item.mrp_estimated?<span style={{fontSize:9,color:'#d97706'}}> {item.mrp_is_group_avg?'(cat. avg.)':'(est.)'}</span>:''}</td>
                       <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
                       <td style={{ ...S.td, textAlign:'right', fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
+                      <td style={{ ...S.td, textAlign:'center' }}>
+                        <button onClick={()=>openInErp(item.product_id)} title="Open in VasyERP" style={{ background:'none', border:'none', cursor:'pointer', color:'#7c3aed', display:'flex', alignItems:'center' }}>
+                          <ExternalLink size={13}/>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <td style={S.totalTd} colSpan={4}>TOTAL ({drillItems.length} products)</td>
+                    <td style={{ ...S.totalTd, textAlign:'right' }}>{fmt_num(drillTotals.qty)}</td>
+                    <td style={S.totalTd}></td>
+                    <td style={{ ...S.totalTd, textAlign:'right' }}>{drillTotals.value>0?fmt_inr(drillTotals.value):'—'}</td>
+                    <td style={S.totalTd}></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
             {drillTotalPages>1&&(
@@ -340,8 +328,6 @@ export default function InventoryPage() {
           </div>
         )}
       </div>
-
-      {productItemCode && <ProductModal itemCode={productItemCode} hint={productHint} onClose={()=>{setProductItemCode(null);setProductHint(undefined)}} />}
     </div>
   )
 }
