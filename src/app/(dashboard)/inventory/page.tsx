@@ -12,8 +12,8 @@ import { useDateRange } from '@/lib/date-range-context'
 
 const S = {
   section: { background:'#fff', borderRadius:16, border:'1px solid #e8d5b7', boxShadow:'0 2px 8px rgba(59,7,100,0.07)', overflow:'hidden' },
-  th: { padding:'7px 10px', fontSize:10, fontWeight:600, color:'#6b5b7b', textTransform:'uppercase' as const, letterSpacing:0.5, background:'#f5f0e8', borderBottom:'1px solid #e8d5b7', whiteSpace:'nowrap' as const },
-  td: { padding:'5px 10px', fontSize:12, color:'#1a0a2e', borderBottom:'1px solid #f0e8d8', whiteSpace:'nowrap' as const },
+  th: { padding:'8px 10px', fontSize:10, fontWeight:700, color:'#6b5b7b', textTransform:'uppercase' as const, letterSpacing:0.5, background:'#f5f0e8', border:'1px solid #e8d5b7', whiteSpace:'nowrap' as const },
+  td: { padding:'6px 10px', fontSize:12, color:'#1a0a2e', border:'1px solid #f0e8d8', whiteSpace:'nowrap' as const },
 }
 const DRILL_PAGE_SIZE = 30
 
@@ -206,7 +206,7 @@ export default function InventoryPage() {
         {invLoading?<div style={{ height:200, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>:(
           <div style={S.section}>
             <div style={{ overflow:'auto', maxHeight:420 }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, border:'1px solid #e8d5b7' }}>
                 <thead>
                   <tr style={{ background:'#3b0764' }}>
                     <th style={{ ...S.th, background:'#3b0764', color:'#fff', position:'sticky', left:0, top:0, minWidth:150, zIndex:2 }}>Category</th>
@@ -256,7 +256,7 @@ export default function InventoryPage() {
             ) : (
             <>
             <div style={{ overflow:'auto', maxHeight:420 }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, border:'1px solid #e8d5b7' }}>
                 <thead><tr>{['Product','Barcode','Category','Brand','Stock','MRP','Cost/Unit','Stock Value'].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
                 <tbody>
                   {drillPageItems.map((item:any,i:number)=>(

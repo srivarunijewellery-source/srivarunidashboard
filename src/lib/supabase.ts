@@ -18,19 +18,30 @@ export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
  * only reliable way to get everything is to page through with `.range()`
  * until a page comes back shorter than the page size.
  *
- * This means this function is safe to use forever, even as tables grow
- * well past 1000, 10,000, or 100,000 rows — no hardcoded cap to outgrow.
+ * CRITICAL: `.range()` pagination is only safe with a deterministic
+ * `.order()`. Without one, Postgres does not guarantee the same row order
+ * across two separate requests — so the SAME row can land in two
+ * different pages (double-counted) while another row is skipped entirely.
+ * This was a real, confirmed bug: an item with exactly one row in the
+ * database was being fetched twice across a page boundary and its
+ * quantity summed twice client-side. Every call orders by `orderBy`
+ * (defaults to `id`, present on every table this is used against) so each
+ * page is a strictly non-overlapping window — no duplicates, no gaps,
+ * every time, regardless of how large the table grows.
  */
 export async function fetchAllRows<T = any>(
   table: string,
   columns: string,
-  build: (q: any) => any = (q) => q
+  build: (q: any) => any = (q) => q,
+  orderBy: string = 'id'
 ): Promise<T[]> {
   const PAGE = 1000
   let from = 0
   let all: T[] = []
   while (true) {
-    const { data, error } = await build(supabase.from(table).select(columns)).range(from, from + PAGE - 1)
+    const { data, error } = await build(supabase.from(table).select(columns))
+      .order(orderBy, { ascending: true })
+      .range(from, from + PAGE - 1)
     if (error) throw error
     if (!data || data.length === 0) break
     all = all.concat(data as T[])
