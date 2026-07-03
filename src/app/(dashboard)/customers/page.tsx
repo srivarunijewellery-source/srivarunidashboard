@@ -9,6 +9,8 @@ import DateNav from '@/components/ui/DateNav'
 import OrderModal from '@/components/ui/OrderModal'
 import { useBranch } from '@/lib/branch-context'
 import { useDateRange } from '@/lib/date-range-context'
+import { useSortable } from '@/lib/useSortable'
+import SortIndicator from '@/components/ui/SortIndicator'
 import { Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -121,6 +123,14 @@ function CustomersInner() {
   ).slice(0, selectedBucket ? undefined : 10)
   const topSpend = allCustomers.slice(0,10)
 
+  const freqGetValue = useCallback((c:any, key:string) => key==='margin' ? 0 : c[key], [])
+  const { sorted: sortedTopFreq, sortKey: freqSortKey, sortDir: freqSortDir, toggleSort: toggleFreqSort } = useSortable(topFreq, freqGetValue)
+  const spendGetValue = useCallback((c:any, key:string) => {
+    if (key==='margin') return c.total_spend>0 ? c.total_profit/c.total_spend*100 : 0
+    return c[key]
+  }, [])
+  const { sorted: sortedTopSpend, sortKey: spendSortKey, sortDir: spendSortDir, toggleSort: toggleSpendSort } = useSortable(topSpend, spendGetValue)
+
   const openErp = (productId?: string) => {
     const url = vasyErpProductUrl(productId)
     if (url) window.open(url, '_blank', 'noopener,noreferrer')
@@ -159,6 +169,10 @@ function CustomersInner() {
       }
       const billList = Object.values(billMap).sort((a,b)=>parseDate(b.date).getTime()-parseDate(a.date).getTime())
       for (const b of billList) b.unique_products = data.filter(r=>r.voucher_no===b.voucher_no).length
+      // Visit number is fixed by chronological order at load time, before
+      // any column sort can reorder the array — so "1st visit" always
+      // means the same bill no matter how the table is currently sorted.
+      billList.forEach((b:any,i:number)=>{ b._visit_no = billList.length-i })
       setBills(billList)
       setLines(data.sort((a,b)=>parseDate(b.date).getTime()-parseDate(a.date).getTime()))
     } finally { setLoadingSearch(false) }
@@ -181,6 +195,11 @@ function CustomersInner() {
   const totalProfit = bills.reduce((s,b)=>s+b.profit,0)
   const totalDisc = bills.reduce((s,b)=>s+b.discount,0)
   const margin = totalSpend>0?totalProfit/totalSpend*100:0
+
+  const billsGetValue = useCallback((b:any, key:string) => key==='margin' ? (b.net_amount>0?b.profit/b.net_amount*100:0) : b[key], [])
+  const { sorted: sortedBills, sortKey: billsSortKey, sortDir: billsSortDir, toggleSort: toggleBillsSort } = useSortable(bills, billsGetValue)
+  const linesGetValue = useCallback((l:any, key:string) => key==='margin' ? (l.net_amount>0?l.profit/l.net_amount*100:0) : l[key], [])
+  const { sorted: sortedLines, sortKey: linesSortKey, sortDir: linesSortDir, toggleSort: toggleLinesSort } = useSortable(lines, linesGetValue)
   const firstVisit = bills.length?format(parseDate(bills[bills.length-1].date),'dd MMM yyyy'):''
   const lastVisit  = bills.length?format(parseDate(bills[0].date),'dd MMM yyyy'):''
 
@@ -245,9 +264,15 @@ function CustomersInner() {
             </div>
             <div style={{ maxHeight:340, overflowY:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                <thead><tr>{['Rank','Customer','Phone','Visits','Total Spend'].map(h=><th key={h} style={{...S.th, position:'sticky', top:0}}>{h}</th>)}</tr></thead>
+                <thead><tr>
+                  <th style={{...S.th, position:'sticky', top:0}}>Rank</th>
+                  <th onClick={()=>toggleFreqSort('customer_name')} style={{...S.th, position:'sticky', top:0, cursor:'pointer'}}>Customer<SortIndicator active={freqSortKey==='customer_name'} dir={freqSortDir}/></th>
+                  <th style={{...S.th, position:'sticky', top:0}}>Phone</th>
+                  <th onClick={()=>toggleFreqSort('visit_count')} style={{...S.th, position:'sticky', top:0, cursor:'pointer'}}>Visits<SortIndicator active={freqSortKey==='visit_count'} dir={freqSortDir}/></th>
+                  <th onClick={()=>toggleFreqSort('total_spend')} style={{...S.th, position:'sticky', top:0, cursor:'pointer'}}>Total Spend<SortIndicator active={freqSortKey==='total_spend'} dir={freqSortDir}/></th>
+                </tr></thead>
                 <tbody>
-                  {topFreq.map((c,i)=>(
+                  {sortedTopFreq.map((c,i)=>(
                     <tr key={c.mobile_no||c.customer_name+i} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                       <td style={{ ...S.td, fontWeight:700, color:i<3?'#f59e0b':'#6b5b7b', textAlign:'center' }}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</td>
                       <td style={S.td}><NameLink onClick={()=>jumpToCustomer(c.customer_name, c.mobile_no)}>{c.customer_name}</NameLink></td>
@@ -283,9 +308,20 @@ function CustomersInner() {
           </div>
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-              <thead><tr>{['Rank','Customer','Phone','Visits','Total Spend','Total Profit','Margin','Units','First Visit','Last Visit'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+              <thead><tr>
+                <th style={S.th}>Rank</th>
+                <th onClick={()=>toggleSpendSort('customer_name')} style={{...S.th, cursor:'pointer'}}>Customer<SortIndicator active={spendSortKey==='customer_name'} dir={spendSortDir}/></th>
+                <th style={S.th}>Phone</th>
+                <th onClick={()=>toggleSpendSort('visit_count')} style={{...S.th, cursor:'pointer'}}>Visits<SortIndicator active={spendSortKey==='visit_count'} dir={spendSortDir}/></th>
+                <th onClick={()=>toggleSpendSort('total_spend')} style={{...S.th, cursor:'pointer'}}>Total Spend<SortIndicator active={spendSortKey==='total_spend'} dir={spendSortDir}/></th>
+                <th onClick={()=>toggleSpendSort('total_profit')} style={{...S.th, cursor:'pointer'}}>Total Profit<SortIndicator active={spendSortKey==='total_profit'} dir={spendSortDir}/></th>
+                <th onClick={()=>toggleSpendSort('margin')} style={{...S.th, cursor:'pointer'}}>Margin<SortIndicator active={spendSortKey==='margin'} dir={spendSortDir}/></th>
+                <th onClick={()=>toggleSpendSort('total_units')} style={{...S.th, cursor:'pointer'}}>Units<SortIndicator active={spendSortKey==='total_units'} dir={spendSortDir}/></th>
+                <th onClick={()=>toggleSpendSort('first_visit')} style={{...S.th, cursor:'pointer'}}>First Visit<SortIndicator active={spendSortKey==='first_visit'} dir={spendSortDir}/></th>
+                <th onClick={()=>toggleSpendSort('last_visit')} style={{...S.th, cursor:'pointer'}}>Last Visit<SortIndicator active={spendSortKey==='last_visit'} dir={spendSortDir}/></th>
+              </tr></thead>
               <tbody>
-                {topSpend.map((c,i)=>{
+                {sortedTopSpend.map((c,i)=>{
                   const m = c.total_spend>0?c.total_profit/c.total_spend*100:0
                   return (
                     <tr key={c.mobile_no||c.customer_name+i} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
@@ -387,11 +423,22 @@ function CustomersInner() {
                   </div>
                   <div style={{ overflowX:'auto' }}>
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                      <thead><tr>{['Visit','Date','Bill No','Sales Person','Items','Products','Amount','Discount','Profit','Margin'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                      <thead><tr>
+                        <th style={S.th}>Visit</th>
+                        <th onClick={()=>toggleBillsSort('date')} style={{...S.th, cursor:'pointer'}}>Date<SortIndicator active={billsSortKey==='date'} dir={billsSortDir}/></th>
+                        <th onClick={()=>toggleBillsSort('voucher_no')} style={{...S.th, cursor:'pointer'}}>Bill No<SortIndicator active={billsSortKey==='voucher_no'} dir={billsSortDir}/></th>
+                        <th onClick={()=>toggleBillsSort('sales_man')} style={{...S.th, cursor:'pointer'}}>Sales Person<SortIndicator active={billsSortKey==='sales_man'} dir={billsSortDir}/></th>
+                        <th onClick={()=>toggleBillsSort('items')} style={{...S.th, cursor:'pointer'}}>Items<SortIndicator active={billsSortKey==='items'} dir={billsSortDir}/></th>
+                        <th onClick={()=>toggleBillsSort('unique_products')} style={{...S.th, cursor:'pointer'}}>Products<SortIndicator active={billsSortKey==='unique_products'} dir={billsSortDir}/></th>
+                        <th onClick={()=>toggleBillsSort('net_amount')} style={{...S.th, cursor:'pointer'}}>Amount<SortIndicator active={billsSortKey==='net_amount'} dir={billsSortDir}/></th>
+                        <th onClick={()=>toggleBillsSort('discount')} style={{...S.th, cursor:'pointer'}}>Discount<SortIndicator active={billsSortKey==='discount'} dir={billsSortDir}/></th>
+                        <th onClick={()=>toggleBillsSort('profit')} style={{...S.th, cursor:'pointer'}}>Profit<SortIndicator active={billsSortKey==='profit'} dir={billsSortDir}/></th>
+                        <th onClick={()=>toggleBillsSort('margin')} style={{...S.th, cursor:'pointer'}}>Margin<SortIndicator active={billsSortKey==='margin'} dir={billsSortDir}/></th>
+                      </tr></thead>
                       <tbody>
-                        {bills.map((b,i)=>{
+                        {sortedBills.map((b,i)=>{
                           const m=b.net_amount>0?b.profit/b.net_amount*100:0
-                          const vn=bills.length-i, sfx=vn===1?'st':vn===2?'nd':vn===3?'rd':'th'
+                          const vn=b._visit_no, sfx=vn===1?'st':vn===2?'nd':vn===3?'rd':'th'
                           return (
                             <tr key={b.voucher_no} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
                               <td style={{ ...S.td, fontWeight:700, color:'#7c3aed' }}>{vn}<sup style={{fontSize:8}}>{sfx}</sup></td>
@@ -434,9 +481,20 @@ function CustomersInner() {
                   </div>
                   <div style={{ overflowX:'auto' }}>
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                      <thead><tr>{['Date','Bill','Barcode','Product','Category','Brand','Qty','Cost','Sold At','Margin'].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                      <thead><tr>
+                        <th onClick={()=>toggleLinesSort('date')} style={{...S.th, cursor:'pointer'}}>Date<SortIndicator active={linesSortKey==='date'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('voucher_no')} style={{...S.th, cursor:'pointer'}}>Bill<SortIndicator active={linesSortKey==='voucher_no'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('item_code')} style={{...S.th, cursor:'pointer'}}>Barcode<SortIndicator active={linesSortKey==='item_code'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('product_name')} style={{...S.th, cursor:'pointer'}}>Product<SortIndicator active={linesSortKey==='product_name'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('category')} style={{...S.th, cursor:'pointer'}}>Category<SortIndicator active={linesSortKey==='category'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('brand')} style={{...S.th, cursor:'pointer'}}>Brand<SortIndicator active={linesSortKey==='brand'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('qty')} style={{...S.th, cursor:'pointer'}}>Qty<SortIndicator active={linesSortKey==='qty'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('landing_cost')} style={{...S.th, cursor:'pointer'}}>Cost<SortIndicator active={linesSortKey==='landing_cost'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('net_amount')} style={{...S.th, cursor:'pointer'}}>Sold At<SortIndicator active={linesSortKey==='net_amount'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('margin')} style={{...S.th, cursor:'pointer'}}>Margin<SortIndicator active={linesSortKey==='margin'} dir={linesSortDir}/></th>
+                      </tr></thead>
                       <tbody>
-                        {lines.map((l,i)=>{
+                        {sortedLines.map((l,i)=>{
                           const m=l.net_amount>0?l.profit/l.net_amount*100:0
                           return (
                             <tr key={`${l.voucher_no}-${l.item_code}-${i}`} style={{ background:i%2===0?'#fff':'#faf8ff' }}>
