@@ -1,9 +1,13 @@
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Cookie-backed client (via @supabase/ssr) so the session survives page
+// navigation and is visible to the middleware that gates every route
+// behind login. All existing pages already `import { supabase } from
+// '@/lib/supabase'` — this swap is invisible to them.
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
 
 /**
  * Fetch EVERY row matching a query, regardless of table size.

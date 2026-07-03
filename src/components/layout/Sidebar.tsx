@@ -1,8 +1,9 @@
 'use client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, TrendingUp, Receipt, Users, BarChart2 } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, Package, TrendingUp, Receipt, Users, BarChart2, LogOut } from 'lucide-react'
 import BranchSelector from './BranchSelector'
+import { supabase } from '@/lib/supabase'
 
 const nav = [
   { href: '/overview',   label: 'Overview',    icon: LayoutDashboard },
@@ -15,6 +16,14 @@ const nav = [
 
 export default function Sidebar() {
   const path = usePathname()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
   return (
     <aside style={{ width:220, flexShrink:0, backgroundColor:'#3b0764', display:'flex', flexDirection:'column', height:'100%' }}>
       <div style={{ padding:'24px 20px 20px', borderBottom:'1px solid rgba(255,255,255,0.1)' }}>
@@ -38,7 +47,15 @@ export default function Sidebar() {
           )
         })}
       </nav>
-      <div style={{ padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.1)' }}>
+      <button onClick={handleLogout} style={{
+        display:'flex', alignItems:'center', gap:10, margin:'0 10px 8px', padding:'10px 12px', borderRadius:10,
+        fontSize:13, fontWeight:500, background:'transparent', border:'none', cursor:'pointer',
+        color:'#c4b5fd', textAlign:'left',
+      }}>
+        <LogOut size={15} />
+        Log out
+      </button>
+      <div style={{ padding:'16px 20px', borderTop:'1px solid rgba(255,255,255,0.1)' }}>
         <p style={{ color:'#a78bfa', fontSize:11 }}>Internal Dashboard</p>
         <p style={{ color:'#7c3aed', fontSize:10, marginTop:2 }}>v2.0 · Supabase</p>
       </div>

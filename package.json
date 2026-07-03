@@ -12,6 +12,7 @@
     "@radix-ui/react-dialog": "^1.1.18",
     "@radix-ui/react-select": "^2.3.2",
     "@radix-ui/react-tooltip": "^1.2.11",
+    "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",

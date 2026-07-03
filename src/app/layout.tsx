@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import Sidebar from '@/components/layout/Sidebar'
 import { BranchProvider } from '@/lib/branch-context'
 import { DateRangeProvider } from '@/lib/date-range-context'
 
@@ -20,12 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-sv-beige font-body text-sv-ink antialiased">
         <BranchProvider>
           <DateRangeProvider>
-            <div className="flex h-screen overflow-hidden">
-              <Sidebar />
-              <main className="flex-1 overflow-y-auto">
-                {children}
-              </main>
-            </div>
+            {children}
           </DateRangeProvider>
         </BranchProvider>
       </body>
