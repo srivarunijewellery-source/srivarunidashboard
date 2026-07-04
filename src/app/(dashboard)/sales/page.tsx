@@ -119,8 +119,8 @@ export default function SalesPage() {
       }
       const codes = Object.keys(agg)
 
-      const { data: inv } = await supabase.from('inventory_with_cost')
-        .select('item_code,image_url,qty,synced_at,cost_per_unit,product_id').in('item_code', codes.slice(0,500))
+      const { data: inv } = await supabase.from('computed_inventory')
+        .select('item_code,image_url,qty,cost_per_unit,product_id').in('item_code', codes.slice(0,500))
       const { data: purch } = await supabase.from('purchases')
         .select('item_code,supplier_name').in('item_code', codes.slice(0,500)).limit(2000)
 

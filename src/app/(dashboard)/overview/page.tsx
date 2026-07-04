@@ -94,8 +94,8 @@ export default function OverviewPage() {
       setTopCustomers(custList)
 
       // Low stock — always live/current, not period-scoped
-      const { data: inv } = await supabase.from('inventory_with_cost')
-        .select('item_code,product_name,category,brand,qty,mrp,cost_per_unit')
+      const { data: inv } = await supabase.from('computed_inventory')
+        .select('item_code,product_name,category,brand,qty,cost_per_unit')
         .gt('qty',0).lt('qty',4).order('qty').limit(10)
       setLowStock(inv||[])
 
@@ -186,7 +186,7 @@ export default function OverviewPage() {
                 <th onClick={()=>toggleLowStockSort('product_name')} style={{...S.th, cursor:'pointer'}}>Product<SortIndicator active={lowStockSortKey==='product_name'} dir={lowStockSortDir}/></th>
                 <th onClick={()=>toggleLowStockSort('category')} style={{...S.th, cursor:'pointer'}}>Category<SortIndicator active={lowStockSortKey==='category'} dir={lowStockSortDir}/></th>
                 <th onClick={()=>toggleLowStockSort('qty')} style={{...S.th, cursor:'pointer'}}>Stock<SortIndicator active={lowStockSortKey==='qty'} dir={lowStockSortDir}/></th>
-                <th onClick={()=>toggleLowStockSort('mrp')} style={{...S.th, cursor:'pointer'}}>MRP<SortIndicator active={lowStockSortKey==='mrp'} dir={lowStockSortDir}/></th>
+                <th onClick={()=>toggleLowStockSort('cost_per_unit')} style={{...S.th, cursor:'pointer'}}>Cost/Unit<SortIndicator active={lowStockSortKey==='cost_per_unit'} dir={lowStockSortDir}/></th>
               </tr></thead>
               <tbody>
                 {sortedLowStock.map((item,i)=>(
@@ -197,7 +197,7 @@ export default function OverviewPage() {
                       <span style={{ padding:'2px 8px', borderRadius:20, fontWeight:700, fontSize:11,
                         background:item.qty<=1?'#fee2e2':'#fef3c7', color:item.qty<=1?'#991b1b':'#92400e' }}>{item.qty}</span>
                     </td>
-                    <td style={{ ...S.td, textAlign:'right', fontWeight:600 }}>{fmt_inr(item.mrp)}</td>
+                    <td style={{ ...S.td, textAlign:'right', fontWeight:600 }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
                   </tr>
                 ))}
                 {!loading&&lowStock.length===0&&(
