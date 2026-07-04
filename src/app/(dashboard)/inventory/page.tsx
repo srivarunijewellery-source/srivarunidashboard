@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { fetchAllRows } from '@/lib/supabase'
+import { fetchAllRows, fetchVendorMap } from '@/lib/supabase'
 import { fmt_inr, fmt_num, getDateRange, normalizeCategory, buildCategoryGroups, vasyErpProductUrl } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import HoverImage from '@/components/ui/HoverImage'
@@ -8,15 +8,10 @@ import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import { useBranch } from '@/lib/branch-context'
 import { useDateRange } from '@/lib/date-range-context'
-import { ExternalLink, Tags, Sparkles, LayoutGrid, ChevronDown, X } from 'lucide-react'
+import { ExternalLink, Tags, Sparkles, LayoutGrid, ChevronDown, X, Truck, Clock } from 'lucide-react'
 import { useSortable } from '@/lib/useSortable'
 import SortIndicator from '@/components/ui/SortIndicator'
 
-// Numeric cells always use tabular figures so digits line up vertically
-// regardless of how many characters they have — this, plus splitting
-// "qty · value" into two real columns instead of one combined string, is
-// what actually fixes ragged alignment (a middot in a variable-width
-// string can't align consistently no matter how it's styled).
 const NUM: React.CSSProperties = { fontVariantNumeric: 'tabular-nums', textAlign: 'right' }
 
 const S = {
@@ -26,19 +21,24 @@ const S = {
   totalTd: { padding:'8px 12px', fontSize:12.5, color:'#3b0764', borderTop:'2px solid #7c3aed', borderRight:'1px solid #ded0f5', whiteSpace:'nowrap' as const, fontWeight:700, background:'#f5f0ff' },
 }
 const DRILL_PAGE_SIZE = 30
+const AGE_BUCKETS = ['<30 days','30-60 days','60-90 days','90-120 days','120+ days','Unknown'] as const
 
 function stockValueOf(p: any): number {
   return p.stock_value ?? (p.cost_per_unit ?? 0) * (p.qty ?? 0)
 }
-
 function openInErp(productId?: string) {
   const url = vasyErpProductUrl(productId)
   if (url) window.open(url, '_blank', 'noopener,noreferrer')
 }
+function bucketOf(ageDays: number | null): typeof AGE_BUCKETS[number] {
+  if (ageDays === null) return 'Unknown'
+  if (ageDays < 30) return '<30 days'
+  if (ageDays < 60) return '30-60 days'
+  if (ageDays < 90) return '60-90 days'
+  if (ageDays < 120) return '90-120 days'
+  return '120+ days'
+}
 
-// A styled native <select> — keeps full accessibility/keyboard behaviour
-// of a real <select> while matching the app's purple/cream identity
-// instead of the browser default.
 function FilterSelect({ icon: Icon, label, value, onChange, options, allLabel }: {
   icon: any; label: string; value: string; onChange: (v: string) => void
   options: string[]; allLabel: string
@@ -56,7 +56,7 @@ function FilterSelect({ icon: Icon, label, value, onChange, options, allLabel }:
           color: isActive?'#3b0764':'#4a3d5c',
           background: isActive?'#f3ecff':'#faf8f4',
           border:`1.5px solid ${isActive?'#c4a7f0':'#e8d5b7'}`,
-          minWidth:180, cursor:'pointer', outline:'none',
+          minWidth:170, cursor:'pointer', outline:'none',
         }}>
           <option value="ALL">{allLabel}</option>
           {options.map(o=><option key={o} value={o}>{o}</option>)}
@@ -74,81 +74,113 @@ function FilterSelect({ icon: Icon, label, value, onChange, options, allLabel }:
   )
 }
 
-export default function InventoryPage() {
-  const { selectedBranch } = useBranch()
-  const [drillKey, setDrillKey] = useState<{cat:string;brand:string}|null>(null)
-  const [drillPage, setDrillPage] = useState(0)
+// Reusable product drill-down table (used by both Snapshot and Aging tabs)
+function ProductDrillTable({ items, title, subtitle, onClose }: { items: any[]; title: string; subtitle: string; onClose?: () => void }) {
+  const [page, setPage] = useState(0)
+  useEffect(() => { setPage(0) }, [items])
+  const getValue = useCallback((item: any, key: string) => item[key], [])
+  const { sorted, sortKey, sortDir, toggleSort } = useSortable(items, getValue)
+  const pageItems = sorted.slice(page*DRILL_PAGE_SIZE, (page+1)*DRILL_PAGE_SIZE)
+  const totalPages = Math.ceil(sorted.length/DRILL_PAGE_SIZE)
+  const totals = useMemo(() => ({
+    qty: items.reduce((s,p)=>s+(p.qty||0),0),
+    value: items.reduce((s,p)=>s+(p.stock_value||0),0),
+  }), [items])
 
-  const [allInventory, setAllInventory] = useState<any[]>([])
-  const [invLoading, setInvLoading] = useState(false)
+  return (
+    <div style={S.section}>
+      <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div>
+          <h3 className="font-display" style={{ color:'#3b0764', margin:0, fontSize:15 }}>{title}</h3>
+          <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{subtitle}</p>
+        </div>
+        {onClose && <button onClick={onClose} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>}
+      </div>
+      {items.length===0 ? (
+        <div style={{ padding:32, textAlign:'center', color:'#6b5b7b', fontSize:13 }}>No products match this selection.</div>
+      ) : (
+      <>
+      <div style={{ overflow:'auto', maxHeight:460 }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <thead>
+            <tr>
+              <th onClick={()=>toggleSort('product_name')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Product<SortIndicator active={sortKey==='product_name'} dir={sortDir}/></th>
+              <th onClick={()=>toggleSort('item_code')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Barcode<SortIndicator active={sortKey==='item_code'} dir={sortDir}/></th>
+              <th onClick={()=>toggleSort('category')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Category<SortIndicator active={sortKey==='category'} dir={sortDir}/></th>
+              <th onClick={()=>toggleSort('brand')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Brand<SortIndicator active={sortKey==='brand'} dir={sortDir}/></th>
+              <th onClick={()=>toggleSort('vendor')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Vendor<SortIndicator active={sortKey==='vendor'} dir={sortDir}/></th>
+              <th onClick={()=>toggleSort('qty')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Stock<SortIndicator active={sortKey==='qty'} dir={sortDir}/></th>
+              <th onClick={()=>toggleSort('cost_per_unit')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Cost/Unit<SortIndicator active={sortKey==='cost_per_unit'} dir={sortDir}/></th>
+              <th onClick={()=>toggleSort('stock_value')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Stock Value<SortIndicator active={sortKey==='stock_value'} dir={sortDir}/></th>
+              <th style={{ ...S.th, position:'sticky', top:0 }}></th>
+            </tr>
+            <tr>
+              <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }} colSpan={5}>TOTAL ({items.length} products)</td>
+              <td style={{ ...S.totalTd, ...NUM, position:'sticky', top:33, zIndex:1 }}>{fmt_num(totals.qty)}</td>
+              <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }}></td>
+              <td style={{ ...S.totalTd, ...NUM, position:'sticky', top:33, zIndex:1 }}>{totals.value>0?fmt_inr(totals.value):'—'}</td>
+              <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }}></td>
+            </tr>
+          </thead>
+          <tbody>
+            {pageItems.map((item:any,i:number)=>(
+              <tr key={item.item_code} className="inv-row" style={{ background:i%2===0?'#fff':'#faf8ff' }}>
+                <td style={S.td}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <HoverImage src={item.image_url} alt={item.product_name} previewSize={280}
+                      wrapperStyle={{ width:28, height:28, borderRadius:6, border:'1px solid #e8d5b7', flexShrink:0 }}
+                      style={{ width:28, height:28, borderRadius:6 }} />
+                    <span onClick={()=>openInErp(item.product_id)}
+                      style={{ fontWeight:600, color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200 }}>{item.product_name?.slice(0,40)}</span>
+                  </div>
+                </td>
+                <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:10 }}>{item.item_code}</td>
+                <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
+                <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
+                <td style={{ ...S.td, color:'#6b5b7b' }}>{item.vendor||'—'}</td>
+                <td style={{ ...S.td, ...NUM, fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b',fontWeight:400}}> ({item._batches}b)</span>:''}</td>
+                <td style={{ ...S.td, ...NUM, color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
+                <td style={{ ...S.td, ...NUM, fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
+                <td style={{ ...S.td, textAlign:'center' }}>
+                  <button onClick={()=>openInErp(item.product_id)} title="Open in VasyERP" style={{ background:'none', border:'none', cursor:'pointer', color:'#7c3aed', display:'flex', alignItems:'center' }}>
+                    <ExternalLink size={13}/>
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {totalPages>1&&(
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'12px 0' }}>
+          <button onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:page===0?'default':'pointer', color:page===0?'#ccc':'#3b0764' }}>← Prev</button>
+          <span style={{ fontSize:12, color:'#6b5b7b' }}>{page*DRILL_PAGE_SIZE+1}–{Math.min((page+1)*DRILL_PAGE_SIZE,sorted.length)} of {sorted.length}</span>
+          <button onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page>=totalPages-1} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:page>=totalPages-1?'default':'pointer', color:page>=totalPages-1?'#ccc':'#3b0764' }}>Next →</button>
+        </div>
+      )}
+      </>
+      )}
+    </div>
+  )
+}
 
-  const loadInventory = useCallback(async () => {
-    setInvLoading(true)
-    try {
-      const data = await fetchAllRows('computed_inventory', 'item_code,product_name,category,brand,qty,cost_per_unit,stock_value,image_url,product_id', q => q.gt('qty', 0), 'item_code')
-      setAllInventory(data)
-    } finally { setInvLoading(false) }
-  }, [])
-  useEffect(() => { loadInventory() }, [loadInventory])
-
-  const categoryGroups = useMemo(() => buildCategoryGroups(allInventory.map(r=>r.category)), [allInventory])
-  const canonicalCategories = useMemo(() => categoryGroups.map(g=>g.canonical), [categoryGroups])
-  const allBrandsList = useMemo(() => [...new Set(allInventory.map(r=>r.brand).filter(Boolean))].sort(), [allInventory])
-
-  const productsByItemCode = useMemo(() => {
-    const map: Record<string, any> = {}
-    for (const p of allInventory) {
-      const key = p.item_code
-      if (!map[key]) map[key] = { ...p, category: normalizeCategory(p.category), qty: 0, stock_value: 0, _batches: 0 }
-      map[key].qty += p.qty ?? 0
-      map[key].stock_value += stockValueOf(p)
-      map[key]._batches += 1
-      if (!map[key].image_url && p.image_url) map[key].image_url = p.image_url
-    }
-    return Object.values(map)
-  }, [allInventory])
-
-  const { rows: pivotRows, brandTotals, grandTotal } = useMemo(() => {
+// Reusable Category x Brand pivot (used by both Snapshot and Aging-bucket drill)
+function CategoryBrandPivot({ items, onCellClick }: { items: any[]; onCellClick: (cat:string,brand:string)=>void }) {
+  const [colSortDir, setColSortDir] = useState<'asc'|'desc'>('desc')
+  const { rows, brandTotals } = useMemo(() => {
     const map: Record<string, any> = {}
     const brandTotals: Record<string, number> = {}
-    const grand = { qty:0, value:0 }
-    for (const p of productsByItemCode) {
-      const cat = p.category
-      const br = p.brand || 'Unknown'
-      brandTotals[br] = (brandTotals[br] || 0) + p.qty
-      grand.qty += p.qty; grand.value += p.stock_value
+    for (const p of items) {
+      const cat = p.category, br = p.brand || 'Unknown'
+      brandTotals[br] = (brandTotals[br]||0) + p.qty
       if (!map[cat]) map[cat] = { category:cat, total:{qty:0,value:0}, brands:{} }
-      map[cat].total.qty += p.qty
-      map[cat].total.value += p.stock_value
+      map[cat].total.qty += p.qty; map[cat].total.value += p.stock_value
       if (!map[cat].brands[br]) map[cat].brands[br] = { qty:0, value:0 }
-      map[cat].brands[br].qty += p.qty
-      map[cat].brands[br].value += p.stock_value
+      map[cat].brands[br].qty += p.qty; map[cat].brands[br].value += p.stock_value
     }
-    return {
-      rows: Object.values(map).sort((a:any,b:any)=>b.total.qty-a.total.qty),
-      brandTotals,
-      grandTotal: grand,
-    }
-  }, [productsByItemCode])
-
-  // Column sort — the direct mirror of row sorting. Rows are sorted by
-  // clicking a column header (a column's values reorder the rows); here
-  // clicking the column-sort toggle reorders the COLUMNS (brands) by
-  // their own overall total qty, highest-to-lowest by default, flipping
-  // to lowest-to-highest on a second click. This only makes sense where
-  // columns share one comparable metric (brands here) — Expenses' month
-  // columns stay chronological on purpose, since scrambling them would
-  // break the month-over-month % change logic.
-  const [colSortDir, setColSortDir] = useState<'asc'|'desc'>('desc')
-  const pivotBrands = useMemo(() => {
-    return Object.keys(brandTotals).sort((a,b)=> colSortDir==='desc' ? brandTotals[b]-brandTotals[a] : brandTotals[a]-brandTotals[b])
-  }, [brandTotals, colSortDir])
-
-  // Click any column header to sort — first click highest-to-lowest,
-  // second click flips to lowest-to-highest. Since rows here ARE the
-  // categories, sorting by any column (including a specific brand's
-  // Qty/Value) reorders the rows accordingly — this is the "sort rows
-  // too" behaviour for this table.
+    return { rows: Object.values(map).sort((a:any,b:any)=>b.total.qty-a.total.qty), brandTotals }
+  }, [items])
+  const brands = useMemo(() => Object.keys(brandTotals).sort((a,b)=> colSortDir==='desc' ? brandTotals[b]-brandTotals[a] : brandTotals[a]-brandTotals[b]), [brandTotals, colSortDir])
   const pivotGetValue = useCallback((row: any, key: string) => {
     if (key === 'category') return row.category
     if (key === 'total_qty') return row.total.qty
@@ -156,7 +188,109 @@ export default function InventoryPage() {
     const [, brand, field] = key.split('::')
     return row.brands[brand]?.[field] ?? -1
   }, [])
-  const { sorted: sortedPivotRows, sortKey: pivotSortKey, sortDir: pivotSortDir, toggleSort: togglePivotSort } = useSortable(pivotRows, pivotGetValue)
+  const { sorted, sortKey, sortDir, toggleSort } = useSortable(rows, pivotGetValue)
+  const grand = { qty: items.reduce((s,p)=>s+p.qty,0), value: items.reduce((s,p)=>s+p.stock_value,0) }
+
+  return (
+    <div style={S.section}>
+      <div style={{ padding:'12px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <p style={{ fontSize:12, color:'#6b5b7b', margin:0 }}>Click any cell for the product list</p>
+        <button onClick={()=>setColSortDir(d=>d==='desc'?'asc':'desc')} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', borderRadius:8, cursor:'pointer', border:'1px solid #e8d5b7', background:'#fff', fontSize:11, fontWeight:600, color:'#3b0764' }}>
+          Brands: {colSortDir==='desc'?'High → Low':'Low → High'}<SortIndicator active dir={colSortDir}/>
+        </button>
+      </div>
+      <div style={{ overflow:'auto', maxHeight:400 }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <thead>
+            <tr>
+              <th onClick={()=>toggleSort('category')} style={{ ...S.th, background:'#3b0764', color:'#fff', position:'sticky', left:0, top:0, minWidth:140, zIndex:3, cursor:'pointer' }}>Category<SortIndicator active={sortKey==='category'} dir={sortDir}/></th>
+              <th colSpan={2} style={{ ...S.th, background:'#4c1d95', color:'#fff', textAlign:'center', position:'sticky', top:0, zIndex:2 }}>TOTAL</th>
+              {brands.map(b=><th key={b} colSpan={2} style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'center', minWidth:120, position:'sticky', top:0, zIndex:1 }}>{b}</th>)}
+            </tr>
+            <tr>
+              <th style={{ ...S.th, background:'#2a044a', position:'sticky', left:0, top:32, zIndex:3 }}></th>
+              <th onClick={()=>toggleSort('total_qty')} style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>Qty<SortIndicator active={sortKey==='total_qty'} dir={sortDir}/></th>
+              <th onClick={()=>toggleSort('total_value')} style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>Value<SortIndicator active={sortKey==='total_value'} dir={sortDir}/></th>
+              {brands.map(b=>(
+                <>
+                  <th key={b+'q'} onClick={()=>toggleSort(`brand::${b}::qty`)} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>Qty<SortIndicator active={sortKey===`brand::${b}::qty`} dir={sortDir}/></th>
+                  <th key={b+'v'} onClick={()=>toggleSort(`brand::${b}::value`)} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>Value<SortIndicator active={sortKey===`brand::${b}::value`} dir={sortDir}/></th>
+                </>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((row:any,ri)=>(
+              <tr key={row.category} className="inv-row" style={{ background:ri%2===0?'#fff':'#faf8ff' }}>
+                <td style={{ ...S.td, color:'#3b0764', fontWeight:700, position:'sticky', left:0, background:ri%2===0?'#fff':'#faf8ff', cursor:'pointer' }} onClick={()=>onCellClick(row.category,'ALL')}>{row.category}</td>
+                <td style={{ ...S.td, ...NUM, fontWeight:700, cursor:'pointer' }} onClick={()=>onCellClick(row.category,'ALL')}>{fmt_num(row.total.qty)}</td>
+                <td style={{ ...S.td, ...NUM, cursor:'pointer', color:'#6b5b7b' }} onClick={()=>onCellClick(row.category,'ALL')}>{row.total.value>0?fmt_inr(row.total.value):'—'}</td>
+                {brands.map(b=>{
+                  const cell=row.brands[b]
+                  return (
+                    <>
+                      <td key={b+'q'} style={{ ...S.td, ...NUM, cursor:cell?'pointer':'default', color:cell?'#1a0a2e':'#d8cfe0' }} onClick={()=>cell&&onCellClick(row.category,b)}>{cell?fmt_num(cell.qty):'—'}</td>
+                      <td key={b+'v'} style={{ ...S.td, ...NUM, cursor:cell?'pointer':'default', color:cell?'#6b5b7b':'#d8cfe0' }} onClick={()=>cell&&onCellClick(row.category,b)}>{cell&&cell.value>0?fmt_inr(cell.value):cell?'—':''}</td>
+                    </>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td style={{ ...S.totalTd, position:'sticky', left:0 }}>GRAND TOTAL</td>
+              <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(grand.qty)}</td>
+              <td style={{ ...S.totalTd, ...NUM }}>{grand.value>0?fmt_inr(grand.value):'—'}</td>
+              {brands.map(b=>{
+                const bt = rows.reduce((s:number,row:any)=>s+(row.brands[b]?.qty||0),0)
+                const bv = rows.reduce((s:number,row:any)=>s+(row.brands[b]?.value||0),0)
+                return (<><td key={b+'q'} style={{ ...S.totalTd, ...NUM }}>{fmt_num(bt)}</td><td key={b+'v'} style={{ ...S.totalTd, ...NUM }}>{bv>0?fmt_inr(bv):'—'}</td></>)
+              })}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+export default function InventoryPage() {
+  const { selectedBranch } = useBranch()
+  const [tab, setTab] = useState<'snapshot'|'aging'>('snapshot')
+  const [drillKey, setDrillKey] = useState<{cat:string;brand:string}|null>(null)
+
+  const [allInventory, setAllInventory] = useState<any[]>([])
+  const [invLoading, setInvLoading] = useState(false)
+  const [vendorMap, setVendorMap] = useState<Record<string,string>>({})
+
+  const loadInventory = useCallback(async () => {
+    setInvLoading(true)
+    try {
+      const data = await fetchAllRows('computed_inventory', 'item_code,product_name,category,brand,qty,cost_per_unit,stock_value,image_url,product_id', q => q.gt('qty', 0), 'item_code')
+      setAllInventory(data)
+      fetchVendorMap().then(setVendorMap) // full map, since inventory spans the whole catalog
+    } finally { setInvLoading(false) }
+  }, [])
+  useEffect(() => { loadInventory() }, [loadInventory])
+
+  const categoryGroups = useMemo(() => buildCategoryGroups(allInventory.map(r=>r.category)), [allInventory])
+  const canonicalCategories = useMemo(() => categoryGroups.map(g=>g.canonical), [categoryGroups])
+  const allBrandsList = useMemo(() => [...new Set(allInventory.map(r=>r.brand).filter(Boolean))].sort(), [allInventory])
+  const allVendorsList = useMemo(() => [...new Set(Object.values(vendorMap))].sort(), [vendorMap])
+
+  const productsByItemCode = useMemo(() => {
+    const map: Record<string, any> = {}
+    for (const p of allInventory) {
+      const key = p.item_code
+      if (!map[key]) map[key] = { ...p, category: normalizeCategory(p.category), qty: 0, stock_value: 0, _batches: 0, vendor: vendorMap[key] || '' }
+      map[key].qty += p.qty ?? 0
+      map[key].stock_value += stockValueOf(p)
+      map[key]._batches += 1
+      if (!map[key].image_url && p.image_url) map[key].image_url = p.image_url
+    }
+    return Object.values(map)
+  }, [allInventory, vendorMap])
 
   const drillItems = useMemo(() => {
     if (!drillKey) return []
@@ -167,20 +301,10 @@ export default function InventoryPage() {
     }).sort((a:any,b:any)=>b.qty-a.qty)
   }, [productsByItemCode, drillKey])
 
-  const drillTotals = useMemo(() => ({
-    qty: drillItems.reduce((s:number,p:any)=>s+p.qty,0),
-    value: drillItems.reduce((s:number,p:any)=>s+p.stock_value,0),
-  }), [drillItems])
-
-  const drillGetValue = useCallback((item: any, key: string) => item[key], [])
-  const { sorted: sortedDrillItems, sortKey: drillSortKey, sortDir: drillSortDir, toggleSort: toggleDrillSort } = useSortable(drillItems, drillGetValue)
-
-  useEffect(() => { setDrillPage(0) }, [drillKey])
-  const drillPageItems = sortedDrillItems.slice(drillPage*DRILL_PAGE_SIZE, (drillPage+1)*DRILL_PAGE_SIZE)
-  const drillTotalPages = Math.ceil(sortedDrillItems.length/DRILL_PAGE_SIZE)
-
+  // ── Category / Brand / Vendor performance cut ──────────────────────────
   const [cutCategory, setCutCategory] = useState('ALL')
   const [cutBrand, setCutBrand] = useState('ALL')
+  const [cutVendor, setCutVendor] = useState('ALL')
   const { grain: cutGrain, offset: cutOffset, setGrain: setCutGrain, setOffset: setCutOffset } = useDateRange()
   const cutRange = getDateRange(cutGrain, cutOffset)
   const [cutSold, setCutSold] = useState({ qty:0, revenue:0 })
@@ -190,15 +314,16 @@ export default function InventoryPage() {
     const filtered = productsByItemCode.filter((p:any) => {
       if (cutCategory!=='ALL' && p.category!==cutCategory) return false
       if (cutBrand!=='ALL' && (p.brand||'Unknown')!==cutBrand) return false
+      if (cutVendor!=='ALL' && (p.vendor||'')!==cutVendor) return false
       return true
     })
     return { qty: filtered.reduce((s:number,r:any)=>s+r.qty,0), value: filtered.reduce((s:number,r:any)=>s+r.stock_value,0) }
-  }, [productsByItemCode, cutCategory, cutBrand])
+  }, [productsByItemCode, cutCategory, cutBrand, cutVendor])
 
   const loadCutSold = useCallback(async () => {
     setCutLoading(true)
     try {
-      const sales = await fetchAllRows('sales', 'category,brand,qty,net_amount', q => {
+      const sales = await fetchAllRows('sales', 'item_code,category,brand,qty,net_amount', q => {
         let qq = q.gte('date', cutRange.from).lte('date', cutRange.to)
         if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
         return qq
@@ -206,29 +331,116 @@ export default function InventoryPage() {
       const filtered = sales.filter(r => {
         if (cutCategory!=='ALL' && normalizeCategory(r.category)!==cutCategory) return false
         if (cutBrand!=='ALL' && (r.brand||'Unknown')!==cutBrand) return false
+        if (cutVendor!=='ALL' && (vendorMap[r.item_code]||'')!==cutVendor) return false
         return true
       })
       setCutSold({ qty: filtered.reduce((s,r)=>s+(r.qty||0),0), revenue: filtered.reduce((s,r)=>s+(r.net_amount||0),0) })
     } finally { setCutLoading(false) }
-  }, [cutCategory, cutBrand, cutRange.from, cutRange.to, selectedBranch])
+  }, [cutCategory, cutBrand, cutVendor, cutRange.from, cutRange.to, selectedBranch, vendorMap])
 
   useEffect(() => { loadCutSold() }, [loadCutSold])
 
+  // ── Aging tab ────────────────────────────────────────────────────────────
+  const [inwardMap, setInwardMap] = useState<Record<string,string>>({})
+  const [lifetimeSales, setLifetimeSales] = useState<Record<string,{qty:number,revenue:number}>>({})
+  const [agingLoading, setAgingLoading] = useState(false)
+  const [agingBucket, setAgingBucket] = useState<string|null>(null)
+  const [agingDrillKey, setAgingDrillKey] = useState<{cat:string;brand:string}|null>(null)
+
+  const loadAgingData = useCallback(async () => {
+    setAgingLoading(true)
+    try {
+      const [inward, sales] = await Promise.all([
+        fetchAllRows('material_inward', 'item_code,inward_date', q => q),
+        fetchAllRows('sales', 'item_code,qty,net_amount', q => q), // lifetime, no date filter -- "till date"
+      ])
+      const inMap: Record<string,string> = {}
+      for (const r of inward) {
+        if (!r.inward_date) continue
+        if (!inMap[r.item_code] || r.inward_date > inMap[r.item_code]) inMap[r.item_code] = r.inward_date
+      }
+      setInwardMap(inMap)
+      const salesMap: Record<string,{qty:number,revenue:number}> = {}
+      for (const r of sales) {
+        if (!salesMap[r.item_code]) salesMap[r.item_code] = { qty:0, revenue:0 }
+        salesMap[r.item_code].qty += r.qty||0
+        salesMap[r.item_code].revenue += r.net_amount||0
+      }
+      setLifetimeSales(salesMap)
+    } finally { setAgingLoading(false) }
+  }, [])
+  useEffect(() => { if (tab==='aging') loadAgingData() }, [tab, loadAgingData])
+
+  // Every item that currently has stock OR has ever sold — aging looks at
+  // the item's full lifecycle, not just what's on the shelf right now.
+  const agingItems = useMemo(() => {
+    const allCodes = new Set([...productsByItemCode.map((p:any)=>p.item_code), ...Object.keys(lifetimeSales)])
+    const stockMap: Record<string,any> = {}
+    for (const p of productsByItemCode as any[]) stockMap[p.item_code] = p
+    return [...allCodes].map(code => {
+      const stock = stockMap[code]
+      const inwardDate = inwardMap[code]
+      const ageDays = inwardDate ? Math.floor((Date.now() - new Date(inwardDate).getTime())/86400000) : null
+      return {
+        item_code: code,
+        product_name: stock?.product_name, category: stock ? stock.category : 'Other',
+        brand: stock?.brand, vendor: stock?.vendor || vendorMap[code] || '',
+        image_url: stock?.image_url, product_id: stock?.product_id, cost_per_unit: stock?.cost_per_unit || 0,
+        qty: stock?.qty || 0, stock_value: stock?.stock_value || 0, _batches: stock?._batches || 0,
+        sold_qty: lifetimeSales[code]?.qty || 0, sold_revenue: lifetimeSales[code]?.revenue || 0,
+        age_days: ageDays, bucket: bucketOf(ageDays),
+      }
+    })
+  }, [productsByItemCode, lifetimeSales, inwardMap, vendorMap])
+
+  const bucketSummary = useMemo(() => {
+    const map: Record<string, any> = {}
+    for (const b of AGE_BUCKETS) map[b] = { bucket:b, sold_qty:0, sold_revenue:0, inv_qty:0, inv_value:0, items:0 }
+    for (const it of agingItems) {
+      map[it.bucket].sold_qty += it.sold_qty
+      map[it.bucket].sold_revenue += it.sold_revenue
+      map[it.bucket].inv_qty += it.qty
+      map[it.bucket].inv_value += it.stock_value
+      map[it.bucket].items += 1
+    }
+    return AGE_BUCKETS.map(b=>map[b])
+  }, [agingItems])
+
+  const agingBucketItems = useMemo(() => agingItems.filter(i=>i.bucket===agingBucket), [agingItems, agingBucket])
+  const agingDrillItems = useMemo(() => {
+    if (!agingDrillKey) return []
+    return agingBucketItems.filter((p:any) => {
+      if (agingDrillKey.cat!=='ALL' && p.category!==agingDrillKey.cat) return false
+      if (agingDrillKey.brand!=='ALL' && (p.brand||'Unknown')!==agingDrillKey.brand) return false
+      return true
+    })
+  }, [agingBucketItems, agingDrillKey])
+
   return (
     <div style={{ minHeight:'100%', background:'#f5f0e8' }}>
-      <PageHeader title="Inventory" subtitle="Live stock snapshot by category and brand" />
+      <PageHeader title="Inventory" subtitle="Live stock snapshot by category and brand"
+        actions={
+          <div style={{ display:'flex', gap:8 }}>
+            {(['snapshot','aging'] as const).map(t=>(
+              <button key={t} onClick={()=>setTab(t)} style={{ padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer', border:`1px solid ${tab===t?'#3b0764':'#e8d5b7'}`, background:tab===t?'#3b0764':'#fff', color:tab===t?'#fff':'#6b5b7b' }}>
+                {t==='snapshot'?'📊 Stock Snapshot':'⏳ Aging'}
+              </button>
+            ))}
+          </div>
+        }
+      />
       <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:22 }}>
 
-        {/* ═══════════ CATEGORY / BRAND PERFORMANCE CUT ═══════════ */}
-        <div style={{
-          borderRadius:18, overflow:'hidden', border:'1px solid #e8d5b7', boxShadow:'0 4px 16px rgba(59,7,100,0.08)',
-        }}>
+        {tab==='snapshot' && (
+        <>
+        {/* ═══════════ CATEGORY / BRAND / VENDOR PERFORMANCE CUT ═══════════ */}
+        <div style={{ borderRadius:18, overflow:'hidden', border:'1px solid #e8d5b7', boxShadow:'0 4px 16px rgba(59,7,100,0.08)' }}>
           <div style={{ background:'linear-gradient(120deg, #3b0764 0%, #5b21b6 100%)', padding:'16px 22px', display:'flex', alignItems:'center', gap:10 }}>
             <div style={{ width:32, height:32, borderRadius:9, background:'rgba(255,255,255,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
               <Sparkles size={16} color="#fff"/>
             </div>
             <div>
-              <h2 className="font-display" style={{ fontSize:16, color:'#fff', margin:0 }}>Category / Brand Performance</h2>
+              <h2 className="font-display" style={{ fontSize:16, color:'#fff', margin:0 }}>Category / Brand / Vendor Performance</h2>
               <p style={{ fontSize:11.5, color:'#d4c2f0', margin:'2px 0 0' }}>Units sold in the selected period vs. units still in stock right now</p>
             </div>
           </div>
@@ -237,6 +449,7 @@ export default function InventoryPage() {
             <div style={{ display:'flex', flexWrap:'wrap', alignItems:'flex-end', gap:20 }}>
               <FilterSelect icon={Tags} label="Category" value={cutCategory} onChange={setCutCategory} options={canonicalCategories} allLabel="All Categories"/>
               <FilterSelect icon={LayoutGrid} label="Brand" value={cutBrand} onChange={setCutBrand} options={allBrandsList} allLabel="All Brands"/>
+              <FilterSelect icon={Truck} label="Vendor" value={cutVendor} onChange={setCutVendor} options={allVendorsList} allLabel="All Vendors"/>
               <div style={{ marginLeft:'auto' }}>
                 <DateNav grain={cutGrain} onGrainChange={setCutGrain} offset={cutOffset} onOffsetChange={setCutOffset} label={cutRange.label} />
               </div>
@@ -257,87 +470,65 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
-          <div>
-            <h2 className="font-display" style={{ fontSize:18, color:'#3b0764', margin:0 }}>Stock Snapshot — Category × Brand</h2>
-            <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Click any cell for the product list · one row per product (multi-batch items summed) · click a product to open it in VasyERP</p>
-          </div>
-          <button onClick={()=>setColSortDir(d=>d==='desc'?'asc':'desc')} style={{
-            display:'flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:9, cursor:'pointer',
-            border:'1px solid #e8d5b7', background:'#fff', fontSize:12, fontWeight:600, color:'#3b0764',
-          }}>
-            Brand columns: {colSortDir==='desc'?'Highest → Lowest':'Lowest → Highest'}
-            <SortIndicator active dir={colSortDir}/>
-          </button>
+        <div>
+          <h2 className="font-display" style={{ fontSize:18, color:'#3b0764', margin:0 }}>Stock Snapshot — Category × Brand</h2>
+          <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Click any cell for the product list · one row per product (multi-batch items summed) · click a product to open it in VasyERP</p>
         </div>
 
         {invLoading?<div style={{ height:200, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>:(
+          <CategoryBrandPivot items={productsByItemCode} onCellClick={(cat,brand)=>setDrillKey({cat,brand})}/>
+        )}
+
+        {drillKey&&(
+          <ProductDrillTable items={drillItems}
+            title={drillKey.cat==='ALL'?'All Products':drillKey.brand==='ALL'?drillKey.cat:`${drillKey.cat} — ${drillKey.brand}`}
+            subtitle={`${drillItems.length} products · ${fmt_num(drillItems.reduce((s:number,p:any)=>s+p.qty,0))} units · click a product to open it in VasyERP`}
+            onClose={()=>setDrillKey(null)}/>
+        )}
+        </>
+        )}
+
+        {tab==='aging' && (
+        <>
+        <div>
+          <h2 className="font-display" style={{ fontSize:18, color:'#3b0764', margin:0, display:'flex', alignItems:'center', gap:8 }}><Clock size={18}/> Inventory Aging</h2>
+          <p style={{ fontSize:12, color:'#6b5b7b', marginTop:4 }}>Age = days since each item's most recent material inward. "Unknown" = no inward record synced for that item. Click a value for the category/brand split.</p>
+        </div>
+
+        {agingLoading||invLoading ? (
+          <div style={{ height:240, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>
+        ) : (
           <div style={S.section}>
-            <div style={{ overflow:'auto', maxHeight:480 }}>
+            <div style={{ overflow:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                <thead>
-                  <tr>
-                    <th onClick={()=>togglePivotSort('category')} style={{ ...S.th, background:'#3b0764', color:'#fff', position:'sticky', left:0, top:0, minWidth:150, zIndex:3, borderRight:'2px solid #2a044a', cursor:'pointer' }}>
-                      Category<SortIndicator active={pivotSortKey==='category'} dir={pivotSortDir}/>
-                    </th>
-                    <th colSpan={2} style={{ ...S.th, background:'#4c1d95', color:'#fff', textAlign:'center', cursor:'pointer', position:'sticky', top:0, zIndex:2 }} onClick={()=>setDrillKey({cat:'ALL',brand:'ALL'})}>TOTAL</th>
-                    {pivotBrands.map(b=>(
-                      <th key={b} colSpan={2} style={{ ...S.th, background:'#3b0764', color:'#fff', textAlign:'center', minWidth:140, position:'sticky', top:0, zIndex:1 }}>{b}</th>
-                    ))}
-                  </tr>
-                  <tr>
-                    <th style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', position:'sticky', left:0, top:32, zIndex:3, borderRight:'2px solid #2a044a' }}></th>
-                    <th onClick={()=>togglePivotSort('total_qty')} style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>
-                      Qty<SortIndicator active={pivotSortKey==='total_qty'} dir={pivotSortDir}/>
-                    </th>
-                    <th onClick={()=>togglePivotSort('total_value')} style={{ ...S.th, background:'#3b0764', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>
-                      Value<SortIndicator active={pivotSortKey==='total_value'} dir={pivotSortDir}/>
-                    </th>
-                    {pivotBrands.map(b=>(
-                      <>
-                        <th key={b+'q'} onClick={()=>togglePivotSort(`brand::${b}::qty`)} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>
-                          Qty<SortIndicator active={pivotSortKey===`brand::${b}::qty`} dir={pivotSortDir}/>
-                        </th>
-                        <th key={b+'v'} onClick={()=>togglePivotSort(`brand::${b}::value`)} style={{ ...S.th, background:'#2a044a', color:'#c4b5fd', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>
-                          Value<SortIndicator active={pivotSortKey===`brand::${b}::value`} dir={pivotSortDir}/>
-                        </th>
-                      </>
-                    ))}
-                  </tr>
-                </thead>
+                <thead><tr>
+                  <th style={S.th}>Age Bucket</th>
+                  <th style={{...S.th, textAlign:'right'}}>Items</th>
+                  <th style={{...S.th, textAlign:'right'}}>Sold Units (till date)</th>
+                  <th style={{...S.th, textAlign:'right'}}>GMS / Revenue (till date)</th>
+                  <th style={{...S.th, textAlign:'right'}}>In Stock Now</th>
+                  <th style={{...S.th, textAlign:'right'}}>Stock Value Now</th>
+                </tr></thead>
                 <tbody>
-                  {sortedPivotRows.map((row:any,ri)=>(
-                    <tr key={row.category} className="inv-row" style={{ background:ri%2===0?'#fff':'#faf8ff' }}>
-                      <td style={{ ...S.td, color:'#3b0764', fontWeight:700, position:'sticky', left:0, background:ri%2===0?'#fff':'#faf8ff', cursor:'pointer', borderRight:'2px solid #e8d5b7' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{row.category}</td>
-                      <td style={{ ...S.td, ...NUM, fontWeight:700, cursor:'pointer', background:'#faf6ff' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{fmt_num(row.total.qty)}</td>
-                      <td style={{ ...S.td, ...NUM, fontWeight:700, cursor:'pointer', color:'#6b5b7b', background:'#faf6ff' }} onClick={()=>setDrillKey({cat:row.category,brand:'ALL'})}>{row.total.value>0?fmt_inr(row.total.value):'—'}</td>
-                      {pivotBrands.map(b=>{
-                        const cell=row.brands[b]
-                        return (
-                          <>
-                            <td key={b+'q'} style={{ ...S.td, ...NUM, fontWeight:cell?600:400, cursor:cell?'pointer':'default', background:cell?undefined:'#fafafa', color:cell?'#1a0a2e':'#d8cfe0' }} onClick={()=>cell&&setDrillKey({cat:row.category,brand:b})}>{cell?fmt_num(cell.qty):'—'}</td>
-                            <td key={b+'v'} style={{ ...S.td, ...NUM, cursor:cell?'pointer':'default', background:cell?undefined:'#fafafa', color:cell?'#6b5b7b':'#d8cfe0' }} onClick={()=>cell&&setDrillKey({cat:row.category,brand:b})}>{cell&&cell.value>0?fmt_inr(cell.value):cell?'—':''}</td>
-                          </>
-                        )
-                      })}
+                  {bucketSummary.map((b,i)=>(
+                    <tr key={b.bucket} className="inv-row" style={{ background:i%2===0?'#fff':'#faf8ff' }}>
+                      <td style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>{b.bucket}</td>
+                      <td style={{ ...S.td, ...NUM, color:'#6b5b7b' }}>{fmt_num(b.items)}</td>
+                      <td style={{ ...S.td, ...NUM, cursor:b.sold_qty>0?'pointer':'default' }} onClick={()=>b.sold_qty>0&&setAgingBucket(b.bucket)}>{fmt_num(b.sold_qty)}</td>
+                      <td style={{ ...S.td, ...NUM, cursor:b.sold_revenue>0?'pointer':'default', color:'#059669', fontWeight:600 }} onClick={()=>b.sold_revenue>0&&setAgingBucket(b.bucket)}>{b.sold_revenue>0?fmt_inr(b.sold_revenue):'—'}</td>
+                      <td style={{ ...S.td, ...NUM, fontWeight:700, cursor:b.inv_qty>0?'pointer':'default' }} onClick={()=>b.inv_qty>0&&setAgingBucket(b.bucket)}>{fmt_num(b.inv_qty)}</td>
+                      <td style={{ ...S.td, ...NUM, cursor:b.inv_value>0?'pointer':'default' }} onClick={()=>b.inv_value>0&&setAgingBucket(b.bucket)}>{b.inv_value>0?fmt_inr(b.inv_value):'—'}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td style={{ ...S.totalTd, position:'sticky', left:0, borderRight:'2px solid #ded0f5' }}>GRAND TOTAL</td>
-                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(grandTotal.qty)}</td>
-                    <td style={{ ...S.totalTd, ...NUM }}>{grandTotal.value>0?fmt_inr(grandTotal.value):'—'}</td>
-                    {pivotBrands.map(b=>{
-                      const bt = pivotRows.reduce((s:number,row:any)=>s+(row.brands[b]?.qty||0),0)
-                      const bv = pivotRows.reduce((s:number,row:any)=>s+(row.brands[b]?.value||0),0)
-                      return (
-                        <>
-                          <td key={b+'q'} style={{ ...S.totalTd, ...NUM }}>{fmt_num(bt)}</td>
-                          <td key={b+'v'} style={{ ...S.totalTd, ...NUM }}>{bv>0?fmt_inr(bv):'—'}</td>
-                        </>
-                      )
-                    })}
+                    <td style={S.totalTd}>GRAND TOTAL</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(bucketSummary.reduce((s,b)=>s+b.items,0))}</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(bucketSummary.reduce((s,b)=>s+b.sold_qty,0))}</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_inr(bucketSummary.reduce((s,b)=>s+b.sold_revenue,0))}</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(bucketSummary.reduce((s,b)=>s+b.inv_qty,0))}</td>
+                    <td style={{ ...S.totalTd, ...NUM }}>{fmt_inr(bucketSummary.reduce((s,b)=>s+b.inv_value,0))}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -345,84 +536,22 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {drillKey&&(
-          <div style={S.section}>
-            <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div>
-                <h3 className="font-display" style={{ color:'#3b0764', margin:0, fontSize:15 }}>
-                  {drillKey.cat==='ALL'?'All Products':drillKey.brand==='ALL'?drillKey.cat:`${drillKey.cat} — ${drillKey.brand}`}
-                </h3>
-                <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>
-                  {drillItems.length} products · {fmt_num(drillTotals.qty)} units · {fmt_inr(drillTotals.value)} · click a product to open it in VasyERP
-                </p>
-              </div>
-              <button onClick={()=>setDrillKey(null)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>
+        {agingBucket&&(
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <h3 className="font-display" style={{ color:'#3b0764', fontSize:16, margin:0 }}>{agingBucket} — Category × Brand</h3>
+              <button onClick={()=>{setAgingBucket(null);setAgingDrillKey(null)}} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>
             </div>
-            {drillItems.length===0 ? (
-              <div style={{ padding:32, textAlign:'center', color:'#6b5b7b', fontSize:13 }}>No products match this selection.</div>
-            ) : (
-            <>
-            <div style={{ overflow:'auto', maxHeight:460 }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                <thead>
-                  <tr>
-                    <th onClick={()=>toggleDrillSort('product_name')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Product<SortIndicator active={drillSortKey==='product_name'} dir={drillSortDir}/></th>
-                    <th onClick={()=>toggleDrillSort('item_code')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Barcode<SortIndicator active={drillSortKey==='item_code'} dir={drillSortDir}/></th>
-                    <th onClick={()=>toggleDrillSort('category')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Category<SortIndicator active={drillSortKey==='category'} dir={drillSortDir}/></th>
-                    <th onClick={()=>toggleDrillSort('brand')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Brand<SortIndicator active={drillSortKey==='brand'} dir={drillSortDir}/></th>
-                    <th onClick={()=>toggleDrillSort('qty')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Stock<SortIndicator active={drillSortKey==='qty'} dir={drillSortDir}/></th>
-                    <th onClick={()=>toggleDrillSort('cost_per_unit')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Cost/Unit<SortIndicator active={drillSortKey==='cost_per_unit'} dir={drillSortDir}/></th>
-                    <th onClick={()=>toggleDrillSort('stock_value')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Stock Value<SortIndicator active={drillSortKey==='stock_value'} dir={drillSortDir}/></th>
-                    <th style={{ ...S.th, position:'sticky', top:0 }}></th>
-                  </tr>
-                  {/* Totals pinned at the TOP, right under the headers, so they're
-                      visible without scrolling to the bottom of a long list */}
-                  <tr>
-                    <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }} colSpan={4}>TOTAL ({drillItems.length} products)</td>
-                    <td style={{ ...S.totalTd, ...NUM, position:'sticky', top:33, zIndex:1 }}>{fmt_num(drillTotals.qty)}</td>
-                    <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }}></td>
-                    <td style={{ ...S.totalTd, ...NUM, position:'sticky', top:33, zIndex:1 }}>{drillTotals.value>0?fmt_inr(drillTotals.value):'—'}</td>
-                    <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }}></td>
-                  </tr>
-                </thead>
-                <tbody>
-                  {drillPageItems.map((item:any,i:number)=>(
-                    <tr key={item.item_code} className="inv-row" style={{ background:i%2===0?'#fff':'#faf8ff' }}>
-                      <td style={S.td}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                          <HoverImage src={item.image_url} alt={item.product_name} previewSize={280}
-                            wrapperStyle={{ width:28, height:28, borderRadius:6, border:'1px solid #e8d5b7', flexShrink:0 }}
-                            style={{ width:28, height:28, borderRadius:6 }} />
-                          <span onClick={()=>openInErp(item.product_id)}
-                            style={{ fontWeight:600, color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd', overflow:'hidden', textOverflow:'ellipsis', maxWidth:220 }}>{item.product_name?.slice(0,40)}</span>
-                        </div>
-                      </td>
-                      <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:10 }}>{item.item_code}</td>
-                      <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
-                      <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
-                      <td style={{ ...S.td, ...NUM, fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b',fontWeight:400}}> ({item._batches}b)</span>:''}</td>
-                      <td style={{ ...S.td, ...NUM, color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
-                      <td style={{ ...S.td, ...NUM, fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
-                      <td style={{ ...S.td, textAlign:'center' }}>
-                        <button onClick={()=>openInErp(item.product_id)} title="Open in VasyERP" style={{ background:'none', border:'none', cursor:'pointer', color:'#7c3aed', display:'flex', alignItems:'center' }}>
-                          <ExternalLink size={13}/>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {drillTotalPages>1&&(
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'12px 0' }}>
-                <button onClick={()=>setDrillPage(p=>Math.max(0,p-1))} disabled={drillPage===0} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:drillPage===0?'default':'pointer', color:drillPage===0?'#ccc':'#3b0764' }}>← Prev</button>
-                <span style={{ fontSize:12, color:'#6b5b7b' }}>{drillPage*DRILL_PAGE_SIZE+1}–{Math.min((drillPage+1)*DRILL_PAGE_SIZE,drillItems.length)} of {drillItems.length}</span>
-                <button onClick={()=>setDrillPage(p=>Math.min(drillTotalPages-1,p+1))} disabled={drillPage>=drillTotalPages-1} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:drillPage>=drillTotalPages-1?'default':'pointer', color:drillPage>=drillTotalPages-1?'#ccc':'#3b0764' }}>Next →</button>
-              </div>
-            )}
-            </>
+            <CategoryBrandPivot items={agingBucketItems} onCellClick={(cat,brand)=>setAgingDrillKey({cat,brand})}/>
+            {agingDrillKey&&(
+              <ProductDrillTable items={agingDrillItems}
+                title={agingDrillKey.cat==='ALL'?`All Products — ${agingBucket}`:agingDrillKey.brand==='ALL'?`${agingDrillKey.cat} — ${agingBucket}`:`${agingDrillKey.cat} — ${agingDrillKey.brand} — ${agingBucket}`}
+                subtitle={`${agingDrillItems.length} products in this age bucket · click a product to open it in VasyERP`}
+                onClose={()=>setAgingDrillKey(null)}/>
             )}
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

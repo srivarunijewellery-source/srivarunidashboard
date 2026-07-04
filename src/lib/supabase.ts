@@ -110,3 +110,24 @@ export type Expense = {
   total_tax: number
   total_basic: number
 }
+
+
+/**
+ * Vendor per item — an item_code can have multiple purchase records from
+ * different suppliers over time; this resolves to the MOST RECENT one,
+ * matching how cost-per-unit is already resolved elsewhere in the app.
+ * Pass itemCodes to scope the lookup (recommended for large pages);
+ * omit it to build the full map (used for the vendor filter dropdown).
+ */
+export async function fetchVendorMap(itemCodes?: string[]): Promise<Record<string, string>> {
+  const data = await fetchAllRows('purchases', 'item_code,supplier_name,bill_date', q =>
+    itemCodes && itemCodes.length ? q.in('item_code', itemCodes) : q)
+  const latest: Record<string, { name: string; date: string }> = {}
+  for (const r of data) {
+    if (!r.supplier_name) continue
+    if (!latest[r.item_code] || (r.bill_date || '') > latest[r.item_code].date) {
+      latest[r.item_code] = { name: r.supplier_name, date: r.bill_date || '' }
+    }
+  }
+  return Object.fromEntries(Object.entries(latest).map(([k, v]) => [k, v.name]))
+}
