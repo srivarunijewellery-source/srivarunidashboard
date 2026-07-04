@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { supabase, fetchAllRows } from '@/lib/supabase'
+import { supabase, fetchAllRows, fetchVendorMap } from '@/lib/supabase'
 import { fmt_inr, fmt_num, fmt_pct, DATA_START, parseDate, getDateRange, vasyErpProductUrl, type Grain } from '@/lib/utils'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricCard from '@/components/ui/MetricCard'
@@ -174,7 +174,11 @@ function CustomersInner() {
       // means the same bill no matter how the table is currently sorted.
       billList.forEach((b:any,i:number)=>{ b._visit_no = billList.length-i })
       setBills(billList)
-      setLines(data.sort((a,b)=>parseDate(b.date).getTime()-parseDate(a.date).getTime()))
+      const sortedLines = data.sort((a,b)=>parseDate(b.date).getTime()-parseDate(a.date).getTime())
+      setLines(sortedLines)
+      fetchVendorMap([...new Set(sortedLines.map((r:any)=>r.item_code))]).then(vm => {
+        setLines(prev => prev.map(r => ({ ...r, vendor: vm[r.item_code]||'' })))
+      })
     } finally { setLoadingSearch(false) }
   }, [])
 
@@ -488,6 +492,7 @@ function CustomersInner() {
                         <th onClick={()=>toggleLinesSort('product_name')} style={{...S.th, cursor:'pointer'}}>Product<SortIndicator active={linesSortKey==='product_name'} dir={linesSortDir}/></th>
                         <th onClick={()=>toggleLinesSort('category')} style={{...S.th, cursor:'pointer'}}>Category<SortIndicator active={linesSortKey==='category'} dir={linesSortDir}/></th>
                         <th onClick={()=>toggleLinesSort('brand')} style={{...S.th, cursor:'pointer'}}>Brand<SortIndicator active={linesSortKey==='brand'} dir={linesSortDir}/></th>
+                        <th onClick={()=>toggleLinesSort('vendor')} style={{...S.th, cursor:'pointer'}}>Vendor<SortIndicator active={linesSortKey==='vendor'} dir={linesSortDir}/></th>
                         <th onClick={()=>toggleLinesSort('qty')} style={{...S.th, cursor:'pointer'}}>Qty<SortIndicator active={linesSortKey==='qty'} dir={linesSortDir}/></th>
                         <th onClick={()=>toggleLinesSort('landing_cost')} style={{...S.th, cursor:'pointer'}}>Cost<SortIndicator active={linesSortKey==='landing_cost'} dir={linesSortDir}/></th>
                         <th onClick={()=>toggleLinesSort('net_amount')} style={{...S.th, cursor:'pointer'}}>Sold At<SortIndicator active={linesSortKey==='net_amount'} dir={linesSortDir}/></th>
@@ -504,6 +509,7 @@ function CustomersInner() {
                               <td onClick={()=>openErp(l.product_id)} title="Open in VasyERP" style={{ ...S.td, fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd' }}>{l.product_name}</td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{l.category}</td>
                               <td style={{ ...S.td, color:'#6b5b7b' }}>{l.brand}</td>
+                              <td style={{ ...S.td, color:'#6b5b7b' }}>{l.vendor||'—'}</td>
                               <td style={{ ...S.td, textAlign:'right' }}>{l.qty}</td>
                               <td style={{ ...S.td, textAlign:'right', color:'#6b5b7b' }}>{fmt_inr(l.landing_cost)}</td>
                               <td style={{ ...S.td, textAlign:'right', fontWeight:600 }}>{fmt_inr(l.net_amount)}</td>
@@ -515,7 +521,7 @@ function CustomersInner() {
                       {lines.length>0&&(
                         <tfoot>
                           <tr style={{ background:'#f5f0ff', borderTop:'2px solid #7c3aed' }}>
-                            <td colSpan={6} style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>TOTAL ({lines.length} items)</td>
+                            <td colSpan={7} style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>TOTAL ({lines.length} items)</td>
                             <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_num(lines.reduce((s,l)=>s+(l.qty||0),0))}</td>
                             <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#6b5b7b' }}>{fmt_inr(lines.reduce((s,l)=>s+(l.landing_cost||0),0))}</td>
                             <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_inr(lines.reduce((s,l)=>s+(l.net_amount||0),0))}</td>

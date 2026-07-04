@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchVendorMap } from '@/lib/supabase'
 import { fmt_inr } from '@/lib/utils'
 import { X } from 'lucide-react'
 import HoverImage from './HoverImage'
@@ -14,6 +14,7 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
   const [item, setItem] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [fallbackMrp, setFallbackMrp] = useState<number | null>(null)
+  const [vendor, setVendor] = useState<string>('')
 
   useEffect(() => {
     let active = true
@@ -37,6 +38,12 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
       .order('date', { ascending: false }).limit(1).then(({ data }) => {
         if (active && data?.[0]) setFallbackMrp(data[0].mrp)
       })
+    return () => { active = false }
+  }, [itemCode])
+
+  useEffect(() => {
+    let active = true
+    fetchVendorMap([itemCode]).then(m => { if (active) setVendor(m[itemCode] || '') })
     return () => { active = false }
   }, [itemCode])
 
@@ -83,6 +90,7 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
               <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>Cost/Unit</p><p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a2e', margin: '2px 0 0' }}>{cost > 0 ? fmt_inr(cost) : '—'}</p></div>
               <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>In Stock</p><p style={{ fontSize: 14, fontWeight: 700, color: qty <= 3 ? '#dc2626' : '#059669', margin: '2px 0 0' }}>{qty}</p></div>
               <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>Stock Value</p><p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a2e', margin: '2px 0 0' }}>{stockValue > 0 ? fmt_inr(stockValue) : '—'}</p></div>
+              <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px', gridColumn:'1 / -1' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>Vendor</p><p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a2e', margin: '2px 0 0' }}>{vendor || '—'}</p></div>
             </div>
           </div>
         )}

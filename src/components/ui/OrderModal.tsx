@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchVendorMap } from '@/lib/supabase'
 import { fmt_inr, fmt_pct, parseDate } from '@/lib/utils'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
@@ -12,8 +12,11 @@ export default function OrderModal({ voucherNo, onClose }: { voucherNo: string; 
   useEffect(() => {
     let active = true
     setLoading(true)
-    supabase.from('sales').select('*').eq('voucher_no', voucherNo).limit(200).then(({ data }) => {
-      if (active) { setLines(data || []); setLoading(false) }
+    supabase.from('sales').select('*').eq('voucher_no', voucherNo).limit(200).then(async ({ data }) => {
+      if (!active) return
+      const rows = data || []
+      const vendorMap = await fetchVendorMap(rows.map(r=>r.item_code))
+      if (active) { setLines(rows.map(r=>({ ...r, vendor: vendorMap[r.item_code]||'' }))); setLoading(false) }
     })
     return () => { active = false }
   }, [voucherNo])
@@ -60,7 +63,7 @@ export default function OrderModal({ voucherNo, onClose }: { voucherNo: string; 
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 16 }}>
                 <thead>
                   <tr>
-                    {['Barcode', 'Product', 'Category', 'Brand', 'Qty', 'Cost', 'Sold At', 'Margin'].map(h => (
+                    {['Barcode', 'Product', 'Category', 'Brand', 'Vendor', 'Qty', 'Cost', 'Sold At', 'Margin'].map(h => (
                       <th key={h} style={{ padding: '8px 10px', fontSize: 11, fontWeight: 600, color: '#6b5b7b', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f5f0e8', borderBottom: '1px solid #e8d5b7', textAlign: h === 'Qty' || h === 'Cost' || h === 'Sold At' || h === 'Margin' ? 'right' : 'left', position: 'sticky', top: 0 }}>{h}</th>
                     ))}
                   </tr>
@@ -74,6 +77,7 @@ export default function OrderModal({ voucherNo, onClose }: { voucherNo: string; 
                         <td style={{ padding: '8px 10px', fontWeight: 600, borderBottom: '1px solid #f0e8d8' }}>{l.product_name}</td>
                         <td style={{ padding: '8px 10px', color: '#6b5b7b', borderBottom: '1px solid #f0e8d8' }}>{l.category}</td>
                         <td style={{ padding: '8px 10px', color: '#6b5b7b', borderBottom: '1px solid #f0e8d8' }}>{l.brand}</td>
+                        <td style={{ padding: '8px 10px', color: '#6b5b7b', borderBottom: '1px solid #f0e8d8' }}>{l.vendor||'—'}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #f0e8d8' }}>{l.qty}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'right', color: '#6b5b7b', borderBottom: '1px solid #f0e8d8' }}>{fmt_inr(l.landing_cost)}</td>
                         <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f0e8d8' }}>{fmt_inr(l.net_amount)}</td>
