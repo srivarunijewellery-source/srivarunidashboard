@@ -11,20 +11,20 @@ export type ProductHint = Partial<{
 }>
 
 export default function ProductModal({ itemCode, hint, onClose }: { itemCode: string; hint?: ProductHint; onClose: () => void }) {
-  const [batches, setBatches] = useState<any[]>([])
+  const [item, setItem] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [fallbackMrp, setFallbackMrp] = useState<number | null>(null)
 
   useEffect(() => {
     let active = true
     setLoading(true)
-    // Fetch EVERY batch for this item — not just one — so the popup can
-    // show exactly which batches make up the total, and the total itself
-    // is computed transparently in front of the person, not hidden.
-    supabase.from('inventory_with_cost').select('*').eq('item_code', itemCode)
-      .order('qty', { ascending: false }).then(({ data }) => {
-        if (active) { setBatches(data || []); setLoading(false) }
-      })
+    // computed_inventory is already reconciled to one row per item_code
+    // (baseline + material inward + sales + adjustments) — the same
+    // source every other page uses, so this popup's numbers can never
+    // disagree with what's shown elsewhere. No batch-level breakdown here
+    // by design: that granularity doesn't exist in this view, on purpose.
+    supabase.from('computed_inventory').select('*').eq('item_code', itemCode).maybeSingle()
+      .then(({ data }) => { if (active) { setItem(data); setLoading(false) } })
     return () => { active = false }
   }, [itemCode])
 
@@ -46,11 +46,6 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const stocked = batches.filter(b => (b.qty ?? 0) > 0)
-  const totalQty = batches.reduce((s, b) => s + (b.qty ?? 0), 0)
-  const totalValue = batches.reduce((s, b) => s + (b.stock_value ?? (b.cost_per_unit ?? 0) * (b.qty ?? 0)), 0)
-  const item = batches[0]
-
   const productName = hint?.product_name || item?.product_name
   const category = hint?.category || item?.category
   const brand = hint?.brand || item?.brand
@@ -59,6 +54,8 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
   const displayMrp = mrp || fallbackMrp || 0
   const cost = hint?.landing_cost || item?.cost_per_unit || 0
   const imageUrl = item?.image_url || hint?.image_url
+  const qty = item?.qty ?? 0
+  const stockValue = item?.stock_value ?? 0
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,10,46,0.55)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -69,7 +66,7 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
         </div>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#6b5b7b' }}>Loading…</div>
-        ) : batches.length===0 && !hint ? (
+        ) : !item && !hint ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#6b5b7b' }}>Product not found ({itemCode}).</div>
         ) : (
           <div style={{ padding: 20, overflow:'auto' }}>
@@ -81,39 +78,12 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
             <p style={{ fontSize: 12, color: '#6b5b7b', margin: '0 0 4px' }}>{brand}</p>
             <p style={{ fontSize: 11, color: '#6b5b7b', fontFamily:'monospace', margin: '0 0 12px' }}>Barcode: {itemCode}</p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: stocked.length>0 ? 16 : 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>MRP{mrpIsEstimated?' (est.)':''}</p><p style={{ fontSize: 14, fontWeight: 700, color: mrpIsEstimated?'#d97706':'#1a0a2e', margin: '2px 0 0' }}>{displayMrp > 0 ? fmt_inr(displayMrp) : '—'}</p></div>
-              <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>Avg Cost/Unit</p><p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a2e', margin: '2px 0 0' }}>{cost > 0 ? fmt_inr(cost) : '—'}</p></div>
-              <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>In Stock (all batches)</p><p style={{ fontSize: 14, fontWeight: 700, color: totalQty <= 3 ? '#dc2626' : '#059669', margin: '2px 0 0' }}>{totalQty}</p></div>
-              <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>Stock Value</p><p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a2e', margin: '2px 0 0' }}>{totalValue > 0 ? fmt_inr(totalValue) : '—'}</p></div>
+              <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>Cost/Unit</p><p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a2e', margin: '2px 0 0' }}>{cost > 0 ? fmt_inr(cost) : '—'}</p></div>
+              <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>In Stock</p><p style={{ fontSize: 14, fontWeight: 700, color: qty <= 3 ? '#dc2626' : '#059669', margin: '2px 0 0' }}>{qty}</p></div>
+              <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>Stock Value</p><p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a2e', margin: '2px 0 0' }}>{stockValue > 0 ? fmt_inr(stockValue) : '—'}</p></div>
             </div>
-
-            {stocked.length > 0 && (
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#3b0764', margin: '0 0 6px' }}>
-                  Batch Breakdown {stocked.length > 1 ? `(${stocked.length} batches with stock)` : ''}
-                </p>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                  <thead>
-                    <tr>
-                      {['Batch No', 'Qty', 'Cost/Unit', 'Value'].map(h => (
-                        <th key={h} style={{ padding: '5px 8px', fontSize: 10, fontWeight: 600, color: '#6b5b7b', textTransform: 'uppercase', background: '#f5f0e8', borderBottom: '1px solid #e8d5b7', textAlign: h==='Batch No'?'left':'right' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stocked.map((b, i) => (
-                      <tr key={b.batch_no || i} style={{ background: i%2===0?'#fff':'#faf8ff' }}>
-                        <td style={{ padding: '5px 8px', fontFamily: 'monospace', fontSize: 10, borderBottom: '1px solid #f0e8d8' }}>{b.batch_no || '—'}</td>
-                        <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 700, borderBottom: '1px solid #f0e8d8' }}>{b.qty}</td>
-                        <td style={{ padding: '5px 8px', textAlign: 'right', color: '#6b5b7b', borderBottom: '1px solid #f0e8d8' }}>{(b.cost_per_unit ?? 0) > 0 ? fmt_inr(b.cost_per_unit) : '—'}</td>
-                        <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f0e8d8' }}>{(b.stock_value ?? 0) > 0 ? fmt_inr(b.stock_value) : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         )}
       </div>
