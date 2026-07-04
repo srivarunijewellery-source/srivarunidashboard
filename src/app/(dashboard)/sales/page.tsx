@@ -235,9 +235,16 @@ export default function SalesPage() {
     }).sort((a:any,b:any)=>b.revenue-a.revenue)
   }, [filteredSoldItems, catDrillKey])
   const [catDrillPage, setCatDrillPage] = useState(0)
+  const [catDrillSortField, setCatDrillSortField] = useState('revenue')
+  const [catDrillSortDir, setCatDrillSortDir] = useState<'asc'|'desc'>('desc')
   useEffect(() => { setCatDrillPage(0) }, [catDrillKey])
-  const catDrillGetValue = useCallback((i:any,key:string)=>i[key],[])
-  const { sorted: sortedCatDrillItems, sortKey: catDrillSortKey, sortDir: catDrillSortDir, toggleSort: toggleCatDrillSort } = useSortable(catDrillItems, catDrillGetValue)
+  const sortedCatDrillItems = useMemo(() => {
+    return [...catDrillItems].sort((a:any,b:any) => {
+      const av = a[catDrillSortField], bv = b[catDrillSortField]
+      const cmp = typeof av === 'string' ? av.localeCompare(bv) : (av||0)-(bv||0)
+      return catDrillSortDir==='asc' ? cmp : -cmp
+    })
+  }, [catDrillItems, catDrillSortField, catDrillSortDir])
   const catDrillPageItems = sortedCatDrillItems.slice(catDrillPage*DRILL_PAGE_SIZE, (catDrillPage+1)*DRILL_PAGE_SIZE)
   const catDrillTotalPages = Math.ceil(sortedCatDrillItems.length/DRILL_PAGE_SIZE)
 
@@ -416,46 +423,33 @@ export default function SalesPage() {
 
             {catDrillKey&&(
               <div style={S.section}>
-                <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
                   <div>
                     <h3 className="font-display" style={{ color:'#3b0764', margin:0, fontSize:15 }}>
                       {catDrillKey.cat==='ALL'?'All Sold Items':catDrillKey.brand==='ALL'?catDrillKey.cat:`${catDrillKey.cat} — ${catDrillKey.brand}`}
                     </h3>
                     <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{catDrillItems.length} items · {fmt_num(catDrillItems.reduce((s:number,i:any)=>s+i.qty_sold,0))} units sold · {dateRange.label}</p>
                   </div>
-                  <button onClick={()=>setCatDrillKey(null)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <select value={catDrillSortField} onChange={e=>setCatDrillSortField(e.target.value)} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #e8d5b7', fontSize:12, color:'#3b0764', background:'#fff' }}>
+                      <option value="revenue">Sort: Revenue</option>
+                      <option value="qty_sold">Sort: Qty Sold</option>
+                      <option value="profit">Sort: Profit</option>
+                      <option value="product_name">Sort: Product Name</option>
+                      <option value="brand">Sort: Brand</option>
+                      <option value="vendor">Sort: Vendor</option>
+                    </select>
+                    <button onClick={()=>setCatDrillSortDir(d=>d==='desc'?'asc':'desc')} title="Flip sort direction" style={{ padding:'6px 8px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', cursor:'pointer', display:'flex', color:'#3b0764' }}>
+                      <SortIndicator active dir={catDrillSortDir}/>
+                    </button>
+                    <button onClick={()=>setCatDrillKey(null)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>
+                  </div>
                 </div>
-                <div style={{ overflow:'auto', maxHeight:460 }}>
-                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                    <thead><tr>
-                      <th onClick={()=>toggleCatDrillSort('product_name')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Product<SortIndicator active={catDrillSortKey==='product_name'} dir={catDrillSortDir}/></th>
-                      <th onClick={()=>toggleCatDrillSort('item_code')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Barcode<SortIndicator active={catDrillSortKey==='item_code'} dir={catDrillSortDir}/></th>
-                      <th onClick={()=>toggleCatDrillSort('brand')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Brand<SortIndicator active={catDrillSortKey==='brand'} dir={catDrillSortDir}/></th>
-                      <th onClick={()=>toggleCatDrillSort('vendor')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Vendor<SortIndicator active={catDrillSortKey==='vendor'} dir={catDrillSortDir}/></th>
-                      <th onClick={()=>toggleCatDrillSort('qty_sold')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Qty Sold<SortIndicator active={catDrillSortKey==='qty_sold'} dir={catDrillSortDir}/></th>
-                      <th onClick={()=>toggleCatDrillSort('revenue')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Revenue<SortIndicator active={catDrillSortKey==='revenue'} dir={catDrillSortDir}/></th>
-                      <th onClick={()=>toggleCatDrillSort('profit')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Profit<SortIndicator active={catDrillSortKey==='profit'} dir={catDrillSortDir}/></th>
-                    </tr></thead>
-                    <tbody>
-                      {catDrillPageItems.map((i:any,idx:number)=>{
-                        const m = i.revenue>0?i.profit/i.revenue*100:0
-                        return (
-                          <tr key={i.item_code} className="inv-row" style={{ background:idx%2===0?'#fff':'#faf8ff' }}>
-                            <td style={{ ...S.td, fontWeight:600, maxWidth:200, overflow:'hidden', textOverflow:'ellipsis' }}>{i.product_name?.slice(0,40)}</td>
-                            <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:10 }}>{i.item_code}</td>
-                            <td style={{ ...S.td, color:'#6b5b7b' }}>{i.brand}</td>
-                            <td style={{ ...S.td, color:'#6b5b7b' }}>{i.vendor||'—'}</td>
-                            <td style={{ ...S.td, ...NUM, fontWeight:700 }}>{fmt_num(i.qty_sold)}</td>
-                            <td style={{ ...S.td, ...NUM, fontWeight:600 }}>{fmt_inr(i.revenue)}</td>
-                            <td style={{ ...S.td, ...NUM, color:m>=25?'#059669':'#d97706' }}>{fmt_inr(i.profit)}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
+                  {catDrillPageItems.map((item:any)=><ProductCard key={item.item_code} {...item}/>)}
                 </div>
                 {catDrillTotalPages>1&&(
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'12px 0' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'0 0 16px' }}>
                     <button onClick={()=>setCatDrillPage(p=>Math.max(0,p-1))} disabled={catDrillPage===0} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:catDrillPage===0?'default':'pointer', color:catDrillPage===0?'#ccc':'#3b0764' }}>← Prev</button>
                     <span style={{ fontSize:12, color:'#6b5b7b' }}>{catDrillPage*DRILL_PAGE_SIZE+1}–{Math.min((catDrillPage+1)*DRILL_PAGE_SIZE,sortedCatDrillItems.length)} of {sortedCatDrillItems.length}</span>
                     <button onClick={()=>setCatDrillPage(p=>Math.min(catDrillTotalPages-1,p+1))} disabled={catDrillPage>=catDrillTotalPages-1} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:catDrillPage>=catDrillTotalPages-1?'default':'pointer', color:catDrillPage>=catDrillTotalPages-1?'#ccc':'#3b0764' }}>Next →</button>
