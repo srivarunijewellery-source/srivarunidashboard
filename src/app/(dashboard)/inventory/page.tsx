@@ -85,7 +85,7 @@ export default function InventoryPage() {
   const loadInventory = useCallback(async () => {
     setInvLoading(true)
     try {
-      const data = await fetchAllRows('inventory_with_cost', 'item_code,product_name,category,brand,qty,cost_per_unit,stock_value,image_url,product_id', q => q.gt('qty', 0))
+      const data = await fetchAllRows('computed_inventory', 'item_code,product_name,category,brand,qty,cost_per_unit,stock_value,image_url,product_id', q => q.gt('qty', 0), 'item_code')
       setAllInventory(data)
     } finally { setInvLoading(false) }
   }, [])
