@@ -8,6 +8,7 @@ import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import { useBranch } from '@/lib/branch-context'
 import { useDateRange } from '@/lib/date-range-context'
+import StockCard from '@/components/inventory/StockCard'
 import { ExternalLink, Tags, Sparkles, LayoutGrid, ChevronDown, X, Truck, Clock } from 'lucide-react'
 import { useSortable } from '@/lib/useSortable'
 import SortIndicator from '@/components/ui/SortIndicator'
@@ -21,7 +22,7 @@ const S = {
   totalTd: { padding:'8px 12px', fontSize:12.5, color:'#3b0764', borderTop:'2px solid #7c3aed', borderRight:'1px solid #ded0f5', whiteSpace:'nowrap' as const, fontWeight:700, background:'#f5f0ff' },
 }
 const DRILL_PAGE_SIZE = 30
-const AGE_BUCKETS = ['<30 days','30-60 days','60-90 days','90-120 days','120+ days','Unknown'] as const
+const AGE_BUCKETS = ['<30 days','30-60 days','60-90 days','90-120 days','120-150 days','150-180 days','180+ days','Unknown'] as const
 
 function stockValueOf(p: any): number {
   return p.stock_value ?? (p.cost_per_unit ?? 0) * (p.qty ?? 0)
@@ -36,7 +37,9 @@ function bucketOf(ageDays: number | null): typeof AGE_BUCKETS[number] {
   if (ageDays < 60) return '30-60 days'
   if (ageDays < 90) return '60-90 days'
   if (ageDays < 120) return '90-120 days'
-  return '120+ days'
+  if (ageDays < 150) return '120-150 days'
+  if (ageDays < 180) return '150-180 days'
+  return '180+ days'
 }
 
 function FilterSelect({ icon: Icon, label, value, onChange, options, allLabel }: {
@@ -74,12 +77,20 @@ function FilterSelect({ icon: Icon, label, value, onChange, options, allLabel }:
   )
 }
 
-// Reusable product drill-down table (used by both Snapshot and Aging tabs)
+// Reusable product drill-down — rendered as tiles (same visual language as
+// Sales -> Details' ProductCard grid), used by both Snapshot and Aging tabs
 function ProductDrillTable({ items, title, subtitle, onClose }: { items: any[]; title: string; subtitle: string; onClose?: () => void }) {
   const [page, setPage] = useState(0)
+  const [sortField, setSortField] = useState('qty')
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc')
   useEffect(() => { setPage(0) }, [items])
-  const getValue = useCallback((item: any, key: string) => item[key], [])
-  const { sorted, sortKey, sortDir, toggleSort } = useSortable(items, getValue)
+  const sorted = useMemo(() => {
+    return [...items].sort((a,b) => {
+      const av = a[sortField], bv = b[sortField]
+      const cmp = typeof av === 'string' ? av.localeCompare(bv) : (av||0)-(bv||0)
+      return sortDir==='asc' ? cmp : -cmp
+    })
+  }, [items, sortField, sortDir])
   const pageItems = sorted.slice(page*DRILL_PAGE_SIZE, (page+1)*DRILL_PAGE_SIZE)
   const totalPages = Math.ceil(sorted.length/DRILL_PAGE_SIZE)
   const totals = useMemo(() => ({
@@ -89,75 +100,40 @@ function ProductDrillTable({ items, title, subtitle, onClose }: { items: any[]; 
 
   return (
     <div style={S.section}>
-      <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
         <div>
           <h3 className="font-display" style={{ color:'#3b0764', margin:0, fontSize:15 }}>{title}</h3>
-          <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{subtitle}</p>
+          <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{subtitle} · {fmt_num(totals.qty)} units · {totals.value>0?fmt_inr(totals.value):'—'} total</p>
         </div>
-        {onClose && <button onClick={onClose} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>}
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <select value={sortField} onChange={e=>setSortField(e.target.value)} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #e8d5b7', fontSize:12, color:'#3b0764', background:'#fff' }}>
+            <option value="qty">Sort: Stock</option>
+            <option value="stock_value">Sort: Stock Value</option>
+            <option value="cost_per_unit">Sort: Cost/Unit</option>
+            <option value="product_name">Sort: Product Name</option>
+            <option value="brand">Sort: Brand</option>
+            <option value="vendor">Sort: Vendor</option>
+          </select>
+          <button onClick={()=>setSortDir(d=>d==='desc'?'asc':'desc')} title="Flip sort direction" style={{ padding:'6px 8px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', cursor:'pointer', display:'flex', color:'#3b0764' }}>
+            <SortIndicator active dir={sortDir}/>
+          </button>
+          {onClose && <button onClick={onClose} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b5b7b' }}>Close ×</button>}
+        </div>
       </div>
       {items.length===0 ? (
         <div style={{ padding:32, textAlign:'center', color:'#6b5b7b', fontSize:13 }}>No products match this selection.</div>
       ) : (
       <>
-      <div style={{ overflow:'auto', maxHeight:460 }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-          <thead>
-            <tr>
-              <th onClick={()=>toggleSort('product_name')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Product<SortIndicator active={sortKey==='product_name'} dir={sortDir}/></th>
-              <th onClick={()=>toggleSort('item_code')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Barcode<SortIndicator active={sortKey==='item_code'} dir={sortDir}/></th>
-              <th onClick={()=>toggleSort('category')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Category<SortIndicator active={sortKey==='category'} dir={sortDir}/></th>
-              <th onClick={()=>toggleSort('brand')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Brand<SortIndicator active={sortKey==='brand'} dir={sortDir}/></th>
-              <th onClick={()=>toggleSort('vendor')} style={{ ...S.th, position:'sticky', top:0, cursor:'pointer' }}>Vendor<SortIndicator active={sortKey==='vendor'} dir={sortDir}/></th>
-              <th onClick={()=>toggleSort('qty')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Stock<SortIndicator active={sortKey==='qty'} dir={sortDir}/></th>
-              <th onClick={()=>toggleSort('cost_per_unit')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Cost/Unit<SortIndicator active={sortKey==='cost_per_unit'} dir={sortDir}/></th>
-              <th onClick={()=>toggleSort('stock_value')} style={{ ...S.th, position:'sticky', top:0, textAlign:'right', cursor:'pointer' }}>Stock Value<SortIndicator active={sortKey==='stock_value'} dir={sortDir}/></th>
-              <th style={{ ...S.th, position:'sticky', top:0 }}></th>
-            </tr>
-            <tr>
-              <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }} colSpan={5}>TOTAL ({items.length} products)</td>
-              <td style={{ ...S.totalTd, ...NUM, position:'sticky', top:33, zIndex:1 }}>{fmt_num(totals.qty)}</td>
-              <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }}></td>
-              <td style={{ ...S.totalTd, ...NUM, position:'sticky', top:33, zIndex:1 }}>{totals.value>0?fmt_inr(totals.value):'—'}</td>
-              <td style={{ ...S.totalTd, position:'sticky', top:33, zIndex:1 }}></td>
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((item:any,i:number)=>(
-              <tr key={item.item_code} className="inv-row" style={{ background:i%2===0?'#fff':'#faf8ff' }}>
-                <td style={S.td}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <HoverImage src={item.image_url} alt={item.product_name} previewSize={280}
-                      wrapperStyle={{ width:28, height:28, borderRadius:6, border:'1px solid #e8d5b7', flexShrink:0 }}
-                      style={{ width:28, height:28, borderRadius:6 }} />
-                    <span onClick={()=>openInErp(item.product_id)}
-                      style={{ fontWeight:600, color:'#3b0764', cursor:'pointer', textDecoration:'underline', textDecorationColor:'#c4b5fd', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200 }}>{item.product_name?.slice(0,40)}</span>
-                  </div>
-                </td>
-                <td style={{ ...S.td, fontFamily:'monospace', color:'#6b5b7b', fontSize:10 }}>{item.item_code}</td>
-                <td style={{ ...S.td, color:'#6b5b7b' }}>{item.category}</td>
-                <td style={{ ...S.td, color:'#6b5b7b' }}>{item.brand}</td>
-                <td style={{ ...S.td, color:'#6b5b7b' }}>{item.vendor||'—'}</td>
-                <td style={{ ...S.td, ...NUM, fontWeight:700 }}>{item.qty}{item._batches>1?<span style={{fontSize:9,color:'#6b5b7b',fontWeight:400}}> ({item._batches}b)</span>:''}</td>
-                <td style={{ ...S.td, ...NUM, color:'#6b5b7b' }}>{item.cost_per_unit>0?fmt_inr(item.cost_per_unit):'—'}</td>
-                <td style={{ ...S.td, ...NUM, fontWeight:600 }}>{item.stock_value>0?fmt_inr(item.stock_value):'—'}</td>
-                <td style={{ ...S.td, textAlign:'center' }}>
-                  <button onClick={()=>openInErp(item.product_id)} title="Open in VasyERP" style={{ background:'none', border:'none', cursor:'pointer', color:'#7c3aed', display:'flex', alignItems:'center' }}>
-                    <ExternalLink size={13}/>
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {totalPages>1&&(
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'12px 0' }}>
-          <button onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:page===0?'default':'pointer', color:page===0?'#ccc':'#3b0764' }}>← Prev</button>
-          <span style={{ fontSize:12, color:'#6b5b7b' }}>{page*DRILL_PAGE_SIZE+1}–{Math.min((page+1)*DRILL_PAGE_SIZE,sorted.length)} of {sorted.length}</span>
-          <button onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page>=totalPages-1} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:page>=totalPages-1?'default':'pointer', color:page>=totalPages-1?'#ccc':'#3b0764' }}>Next →</button>
+        <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
+          {pageItems.map((item:any)=><StockCard key={item.item_code} {...item}/>)}
         </div>
-      )}
+        {totalPages>1&&(
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'0 0 16px' }}>
+            <button onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:page===0?'default':'pointer', color:page===0?'#ccc':'#3b0764' }}>← Prev</button>
+            <span style={{ fontSize:12, color:'#6b5b7b' }}>{page*DRILL_PAGE_SIZE+1}–{Math.min((page+1)*DRILL_PAGE_SIZE,sorted.length)} of {sorted.length}</span>
+            <button onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page>=totalPages-1} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:12, cursor:page>=totalPages-1?'default':'pointer', color:page>=totalPages-1?'#ccc':'#3b0764' }}>Next →</button>
+          </div>
+        )}
       </>
       )}
     </div>
