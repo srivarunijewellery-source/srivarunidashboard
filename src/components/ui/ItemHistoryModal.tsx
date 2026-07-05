@@ -17,11 +17,19 @@ export default function ItemHistoryModal({ itemCode, productName, onClose, onOpe
     setLoading(true)
     Promise.all([
       supabase.from('sales').select('date,voucher_no,qty,net_amount,selling_price,customer_name,mobile_no,sales_man').eq('item_code', itemCode).order('date', { ascending: false }),
-      supabase.from('material_inward').select('inward_date,inward_qty,supplier_name,inward_amount,po_no,inward_no').eq('item_code', itemCode).order('inward_date', { ascending: false }),
-    ]).then(([s, m]) => {
+      supabase.from('material_inward').select('inward_date,inward_qty,supplier_name,po_no,inward_no').eq('item_code', itemCode).order('inward_date', { ascending: false }),
+      // inward_amount on material_inward is the TOTAL for the whole
+      // inward batch (can span 100+ different items), NOT a per-item
+      // amount -- dividing it by this item's qty alone produces a
+      // meaningless inflated number. purchases has inward_no directly,
+      // giving a real per-line-item rate instead.
+      supabase.from('purchases').select('inward_no,rate').eq('item_code', itemCode),
+    ]).then(([s, m, p]) => {
       if (!active) return
+      const rateByInwardNo: Record<string, number> = {}
+      for (const row of (p.data || [])) { if (row.inward_no && row.rate>0) rateByInwardNo[row.inward_no] = row.rate }
       setSales(s.data || [])
-      setInward(m.data || [])
+      setInward((m.data || []).map(row => ({ ...row, rate: rateByInwardNo[row.inward_no] })))
       setLoading(false)
     })
     return () => { active = false }
@@ -58,7 +66,7 @@ export default function ItemHistoryModal({ itemCode, productName, onClose, onOpe
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                   {inward.map((r,i)=>{
-                    const rate = r.inward_qty>0 ? (r.inward_amount||0)/r.inward_qty : 0
+                    const rate = r.rate || 0
                     return (
                       <div key={i} style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:'8px 12px', fontSize:12 }}>
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
