@@ -268,33 +268,40 @@ export default function InventoryPage() {
     return Object.values(map)
   }, [allInventory, vendorMap])
 
-  const drillItems = useMemo(() => {
-    if (!drillKey) return []
-    return productsByItemCode.filter((p:any) => {
-      if (drillKey.cat!=='ALL' && p.category!==drillKey.cat) return false
-      if (drillKey.brand!=='ALL' && (p.brand||'Unknown')!==drillKey.brand) return false
-      return true
-    }).sort((a:any,b:any)=>b.qty-a.qty)
-  }, [productsByItemCode, drillKey])
-
   // ── Category / Brand / Vendor performance cut ──────────────────────────
   const [cutCategory, setCutCategory] = useState('ALL')
   const [cutBrand, setCutBrand] = useState('ALL')
   const [cutVendor, setCutVendor] = useState('ALL')
+
+  // Filters apply to BOTH the summary cards AND the Stock Snapshot table
+  // below -- selecting a category/brand/vendor filters everything on the
+  // page consistently, not just the metric cards.
+  const filteredProductsByItemCode = useMemo(() => {
+    return productsByItemCode.filter((p:any) => {
+      if (cutCategory!=='ALL' && p.category!==cutCategory) return false
+      if (cutBrand!=='ALL' && (p.brand||'Unknown')!==cutBrand) return false
+      if (cutVendor!=='ALL' && (p.vendor||'')!==cutVendor) return false
+      return true
+    })
+  }, [productsByItemCode, cutCategory, cutBrand, cutVendor])
+
+  const drillItems = useMemo(() => {
+    if (!drillKey) return []
+    return filteredProductsByItemCode.filter((p:any) => {
+      if (drillKey.cat!=='ALL' && p.category!==drillKey.cat) return false
+      if (drillKey.brand!=='ALL' && (p.brand||'Unknown')!==drillKey.brand) return false
+      return true
+    }).sort((a:any,b:any)=>b.qty-a.qty)
+  }, [filteredProductsByItemCode, drillKey])
+
   const { grain: cutGrain, offset: cutOffset, setGrain: setCutGrain, setOffset: setCutOffset } = useDateRange()
   const cutRange = getDateRange(cutGrain, cutOffset)
   const [cutSold, setCutSold] = useState({ qty:0, revenue:0 })
   const [cutLoading, setCutLoading] = useState(false)
 
   const cutStock = useMemo(() => {
-    const filtered = productsByItemCode.filter((p:any) => {
-      if (cutCategory!=='ALL' && p.category!==cutCategory) return false
-      if (cutBrand!=='ALL' && (p.brand||'Unknown')!==cutBrand) return false
-      if (cutVendor!=='ALL' && (p.vendor||'')!==cutVendor) return false
-      return true
-    })
-    return { qty: filtered.reduce((s:number,r:any)=>s+r.qty,0), value: filtered.reduce((s:number,r:any)=>s+r.stock_value,0) }
-  }, [productsByItemCode, cutCategory, cutBrand, cutVendor])
+    return { qty: filteredProductsByItemCode.reduce((s:number,r:any)=>s+r.qty,0), value: filteredProductsByItemCode.reduce((s:number,r:any)=>s+r.stock_value,0) }
+  }, [filteredProductsByItemCode])
 
   const loadCutSold = useCallback(async () => {
     setCutLoading(true)
@@ -452,7 +459,7 @@ export default function InventoryPage() {
         </div>
 
         {invLoading?<div style={{ height:200, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>:(
-          <CategoryBrandPivot items={productsByItemCode} onCellClick={(cat,brand)=>setDrillKey({cat,brand})}/>
+          <CategoryBrandPivot items={filteredProductsByItemCode} onCellClick={(cat,brand)=>setDrillKey({cat,brand})}/>
         )}
 
         {drillKey&&(
