@@ -9,6 +9,7 @@ import MetricCard from '@/components/ui/MetricCard'
 import { useBranch } from '@/lib/branch-context'
 import { useDateRange } from '@/lib/date-range-context'
 import StockCard from '@/components/inventory/StockCard'
+import ItemDeepDive from '@/components/inventory/ItemDeepDive'
 import { ExternalLink, Tags, Sparkles, LayoutGrid, ChevronDown, X, Truck, Clock } from 'lucide-react'
 import { useSortable } from '@/lib/useSortable'
 import SortIndicator from '@/components/ui/SortIndicator'
@@ -233,7 +234,7 @@ function CategoryBrandPivot({ items, onCellClick }: { items: any[]; onCellClick:
 
 export default function InventoryPage() {
   const { selectedBranch } = useBranch()
-  const [tab, setTab] = useState<'snapshot'|'aging'>('snapshot')
+  const [tab, setTab] = useState<'snapshot'|'aging'|'deepdive'>('snapshot')
   const [drillKey, setDrillKey] = useState<{cat:string;brand:string}|null>(null)
 
   const [allInventory, setAllInventory] = useState<any[]>([])
@@ -404,9 +405,9 @@ export default function InventoryPage() {
       <PageHeader title="Inventory" subtitle="Live stock snapshot by category and brand"
         actions={
           <div style={{ display:'flex', gap:8 }}>
-            {(['snapshot','aging'] as const).map(t=>(
+            {(['snapshot','aging','deepdive'] as const).map(t=>(
               <button key={t} onClick={()=>setTab(t)} style={{ padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer', border:`1px solid ${tab===t?'#3b0764':'#e8d5b7'}`, background:tab===t?'#3b0764':'#fff', color:tab===t?'#fff':'#6b5b7b' }}>
-                {t==='snapshot'?'📊 Stock Snapshot':'⏳ Aging'}
+                {t==='snapshot'?'📊 Stock Snapshot':t==='aging'?'⏳ Aging':'🔍 Item Deep Dive'}
               </button>
             ))}
           </div>
@@ -536,6 +537,8 @@ export default function InventoryPage() {
         )}
         </>
         )}
+
+        {tab==='deepdive' && <ItemDeepDive/>}
       </div>
     </div>
   )
