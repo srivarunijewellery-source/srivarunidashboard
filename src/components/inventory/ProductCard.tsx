@@ -1,5 +1,9 @@
 'use client'
+import { useState } from 'react'
 import HoverImage from '@/components/ui/HoverImage'
+import ItemHistoryModal from '@/components/ui/ItemHistoryModal'
+import OrderModal from '@/components/ui/OrderModal'
+import { History } from 'lucide-react'
 import { normalizeCategory, vasyErpProductUrl } from '@/lib/utils'
 
 interface ProductCardProps {
@@ -24,6 +28,8 @@ export default function ProductCard({ item_code, product_name, category, brand, 
   selling_price, landing_cost, qty_sold, qty_remaining, revenue, profit, vendor, age_days, product_id }: ProductCardProps) {
   const margin = selling_price > 0 ? (selling_price - landing_cost) / selling_price * 100 : 0
   const age = age_days !== undefined ? ageBadge(age_days) : null
+  const [showHistory, setShowHistory] = useState(false)
+  const [orderVoucher, setOrderVoucher] = useState<string|null>(null)
   const marginColor = margin >= 40 ? '#059669' : margin >= 25 ? '#d97706' : '#dc2626'
   const stockColor = qty_remaining <= 0 ? '#dc2626' : qty_remaining <= 3 ? '#d97706' : '#059669'
   const erpUrl = vasyErpProductUrl(product_id)
@@ -101,7 +107,20 @@ export default function ProductCard({ item_code, product_name, category, brand, 
             <span onClick={openErp} title="Open in VasyERP" style={{ fontFamily: 'monospace', color: erpUrl ? '#3b0764' : '#6b5b7b', cursor: erpUrl ? 'pointer' : 'default', textDecoration: erpUrl ? 'underline' : 'none', textDecorationColor: '#c4b5fd' }}>{item_code}</span>
           </div>
         </div>
+
+        <button onClick={()=>setShowHistory(true)} style={{
+          display:'flex', alignItems:'center', justifyContent:'center', gap:5,
+          padding:'6px', borderRadius:8, border:'1px solid #e8d5b7', background:'#faf8f4',
+          fontSize:11, fontWeight:600, color:'#3b0764', cursor:'pointer', marginTop: 2,
+        }}>
+          <History size={12}/> Sale & Stock History
+        </button>
       </div>
+
+      {showHistory && (
+        <ItemHistoryModal itemCode={item_code} productName={product_name} onClose={()=>setShowHistory(false)} onOpenOrder={(v)=>{setShowHistory(false);setOrderVoucher(v)}}/>
+      )}
+      {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)}/>}
     </div>
   )
 }

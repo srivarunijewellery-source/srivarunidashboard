@@ -1,5 +1,9 @@
 'use client'
+import { useState } from 'react'
 import HoverImage from '@/components/ui/HoverImage'
+import ItemHistoryModal from '@/components/ui/ItemHistoryModal'
+import OrderModal from '@/components/ui/OrderModal'
+import { History } from 'lucide-react'
 import { normalizeCategory, vasyErpProductUrl, fmt_inr, fmt_num } from '@/lib/utils'
 
 interface StockCardProps {
@@ -14,6 +18,8 @@ export default function StockCard({ item_code, product_name, category, brand, ve
   const erpUrl = vasyErpProductUrl(product_id)
   const openErp = () => { if (erpUrl) window.open(erpUrl, '_blank', 'noopener,noreferrer') }
   const stockColor = qty <= 0 ? '#dc2626' : qty <= 3 ? '#d97706' : '#059669'
+  const [showHistory, setShowHistory] = useState(false)
+  const [orderVoucher, setOrderVoucher] = useState<string|null>(null)
 
   return (
     <div className="product-card" style={{
@@ -89,7 +95,20 @@ export default function StockCard({ item_code, product_name, category, brand, ve
             <span onClick={openErp} style={{ fontFamily: 'monospace', color: erpUrl ? '#3b0764' : '#6b5b7b', cursor: erpUrl ? 'pointer' : 'default', textDecoration: erpUrl ? 'underline' : 'none', textDecorationColor: '#c4b5fd' }}>{item_code}</span>
           </div>
         </div>
+
+        <button onClick={()=>setShowHistory(true)} style={{
+          display:'flex', alignItems:'center', justifyContent:'center', gap:5,
+          padding:'6px', borderRadius:8, border:'1px solid #e8d5b7', background:'#faf8f4',
+          fontSize:11, fontWeight:600, color:'#3b0764', cursor:'pointer', marginTop: 2,
+        }}>
+          <History size={12}/> Sale & Stock History
+        </button>
       </div>
+
+      {showHistory && (
+        <ItemHistoryModal itemCode={item_code} productName={product_name} onClose={()=>setShowHistory(false)} onOpenOrder={(v)=>{setShowHistory(false);setOrderVoucher(v)}}/>
+      )}
+      {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)}/>}
     </div>
   )
 }
