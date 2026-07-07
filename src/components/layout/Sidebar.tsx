@@ -1,17 +1,18 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, TrendingUp, Receipt, Users, BarChart2, LogOut } from 'lucide-react'
+import { LayoutDashboard, Package, TrendingUp, Receipt, Users, BarChart2, ArrowLeftRight, LogOut } from 'lucide-react'
 import BranchSelector from './BranchSelector'
 import { supabase } from '@/lib/supabase'
 
 const nav = [
-  { href: '/overview',   label: 'Overview',    icon: LayoutDashboard },
-  { href: '/inventory',  label: 'Inventory',   icon: Package },
-  { href: '/sales',      label: 'Sales',       icon: TrendingUp },
-  { href: '/expenses',   label: 'Expenses',    icon: Receipt },
-  { href: '/customers',  label: 'Customers',   icon: Users },
-  { href: '/team',       label: 'Sales Team',  icon: BarChart2 },
+  { href: '/overview',       label: 'Overview',       icon: LayoutDashboard },
+  { href: '/inventory',      label: 'Inventory',      icon: Package },
+  { href: '/stock-transfer', label: 'Stock Transfer', icon: ArrowLeftRight },
+  { href: '/sales',          label: 'Sales',           icon: TrendingUp },
+  { href: '/expenses',       label: 'Expenses',        icon: Receipt },
+  { href: '/customers',      label: 'Customers',       icon: Users },
+  { href: '/team',           label: 'Sales Team',      icon: BarChart2 },
 ]
 
 export default function Sidebar() {
