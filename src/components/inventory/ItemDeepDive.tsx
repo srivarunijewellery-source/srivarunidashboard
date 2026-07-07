@@ -4,7 +4,8 @@ import { supabase, fetchVendorMap } from '@/lib/supabase'
 import { fmt_inr, fmt_num, normalizeCategory, parseDate, vasyErpProductUrl } from '@/lib/utils'
 import HoverImage from '@/components/ui/HoverImage'
 import OrderModal from '@/components/ui/OrderModal'
-import { Search, ExternalLink, AlertTriangle } from 'lucide-react'
+import TransferModal from './TransferModal'
+import { Search, ExternalLink, AlertTriangle, ArrowLeftRight } from 'lucide-react'
 import { format } from 'date-fns'
 
 const S = {
@@ -34,6 +35,7 @@ export default function ItemDeepDive() {
   const [selected, setSelected] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [vendor, setVendor] = useState('')
+  const [showTransfer, setShowTransfer] = useState(false)
 
   const [inward, setInward] = useState<any[]>([])
   const [adjustments, setAdjustments] = useState<any[]>([])
@@ -124,6 +126,14 @@ export default function ItemDeepDive() {
               <p onClick={()=>erpUrl && window.open(erpUrl,'_blank','noopener,noreferrer')} style={{ fontSize:16, fontWeight:700, color: erpUrl?'#3b0764':'#1a0a2e', margin:'2px 0 4px', cursor:erpUrl?'pointer':'default', textDecoration:erpUrl?'underline':'none', textDecorationColor:'#c4b5fd' }}>{selected.product_name}</p>
               <p style={{ fontSize:12, color:'#6b5b7b', margin:0 }}>{selected.brand} {vendor && `· Vendor: ${vendor}`}</p>
               <p style={{ fontSize:11, color:'#6b5b7b', fontFamily:'monospace', margin:'4px 0 0' }}>{selected.item_code}</p>
+              <button onClick={()=>setShowTransfer(true)} disabled={selected.qty<=0} title={selected.qty>0?'Transfer to another branch':'No stock to transfer'} style={{
+                marginTop:8, display:'inline-flex', alignItems:'center', gap:5,
+                padding:'6px 12px', borderRadius:8, border:'1px solid #e8d5b7', background:'#faf8f4',
+                fontSize:11, fontWeight:600, color:'#3b0764', cursor: selected.qty>0?'pointer':'default',
+                opacity: selected.qty>0?1:0.45,
+              }}>
+                <ArrowLeftRight size={12}/> Transfer to another branch
+              </button>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignContent:'start' }}>
               <div style={{ background:'#f5f0e8', borderRadius:10, padding:'8px 14px', textAlign:'center' }}>
@@ -246,6 +256,9 @@ export default function ItemDeepDive() {
       )}
 
       {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)}/>}
+      {showTransfer && selected && (
+        <TransferModal itemCode={selected.item_code} productName={selected.product_name} category={selected.category} brand={selected.brand} currentQty={selected.qty} onClose={()=>setShowTransfer(false)}/>
+      )}
     </div>
   )
 }
