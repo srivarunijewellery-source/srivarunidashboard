@@ -3,7 +3,8 @@ import { useState } from 'react'
 import HoverImage from '@/components/ui/HoverImage'
 import ItemHistoryModal from '@/components/ui/ItemHistoryModal'
 import OrderModal from '@/components/ui/OrderModal'
-import { History } from 'lucide-react'
+import TransferModal from './TransferModal'
+import { History, ArrowLeftRight } from 'lucide-react'
 import { normalizeCategory, vasyErpProductUrl, fmt_inr, fmt_num } from '@/lib/utils'
 
 interface StockCardProps {
@@ -19,6 +20,7 @@ export default function StockCard({ item_code, product_name, category, brand, ve
   const openErp = () => { if (erpUrl) window.open(erpUrl, '_blank', 'noopener,noreferrer') }
   const stockColor = qty <= 0 ? '#dc2626' : qty <= 3 ? '#d97706' : '#059669'
   const [showHistory, setShowHistory] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
   const [orderVoucher, setOrderVoucher] = useState<string|null>(null)
 
   return (
@@ -96,19 +98,32 @@ export default function StockCard({ item_code, product_name, category, brand, ve
           </div>
         </div>
 
-        <button onClick={()=>setShowHistory(true)} style={{
-          display:'flex', alignItems:'center', justifyContent:'center', gap:5,
-          padding:'6px', borderRadius:8, border:'1px solid #e8d5b7', background:'#faf8f4',
-          fontSize:11, fontWeight:600, color:'#3b0764', cursor:'pointer', marginTop: 2,
-        }}>
-          <History size={12}/> Sale & Stock History
-        </button>
+        <div style={{ display:'flex', gap:6, marginTop: 2 }}>
+          <button onClick={()=>setShowHistory(true)} style={{
+            flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5,
+            padding:'6px', borderRadius:8, border:'1px solid #e8d5b7', background:'#faf8f4',
+            fontSize:11, fontWeight:600, color:'#3b0764', cursor:'pointer',
+          }}>
+            <History size={12}/> History
+          </button>
+          <button onClick={()=>setShowTransfer(true)} disabled={qty<=0} title={qty>0?'Transfer to another branch':'No stock to transfer'} style={{
+            display:'flex', alignItems:'center', justifyContent:'center', gap:5,
+            padding:'6px 10px', borderRadius:8, border:'1px solid #e8d5b7', background:'#faf8f4',
+            fontSize:11, fontWeight:600, color:'#3b0764', cursor: qty>0?'pointer':'default',
+            opacity: qty>0?1:0.45,
+          }}>
+            <ArrowLeftRight size={12}/> Transfer
+          </button>
+        </div>
       </div>
 
       {showHistory && (
         <ItemHistoryModal itemCode={item_code} productName={product_name} onClose={()=>setShowHistory(false)} onOpenOrder={(v)=>{setShowHistory(false);setOrderVoucher(v)}}/>
       )}
       {orderVoucher && <OrderModal voucherNo={orderVoucher} onClose={()=>setOrderVoucher(null)}/>}
+      {showTransfer && (
+        <TransferModal itemCode={item_code} productName={product_name} category={category} brand={brand} currentQty={qty} onClose={()=>setShowTransfer(false)}/>
+      )}
     </div>
   )
 }
