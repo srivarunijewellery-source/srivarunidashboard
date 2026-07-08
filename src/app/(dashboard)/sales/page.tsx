@@ -158,15 +158,26 @@ export default function SalesPage() {
         agg[s.item_code].customers.add(s.mobile_no || s.customer_name || 'unknown')
         agg[s.item_code].bills.add(s.voucher_no)
       }
+      
       const codes = Object.keys(agg)
 
-      const { data: inv } = await supabase.from('computed_inventory')
-        .select('item_code,image_url,qty,cost_per_unit,product_id').in('item_code', codes.slice(0,500))
-      const { data: purch } = await supabase.from('purchases')
-        .select('item_code,supplier_name').in('item_code', codes.slice(0,500)).limit(2000)
+      const CHUNK = 200
+      const chunks: string[][] = []
+      for (let i = 0; i < codes.length; i += CHUNK) chunks.push(codes.slice(i, i + CHUNK))
 
-      const invMap: Record<string,any> = {}; for (const p of inv||[]) invMap[p.item_code] = p
-      const venMap: Record<string,string> = {}; for (const p of purch||[]) { if (!venMap[p.item_code]) venMap[p.item_code] = p.supplier_name }
+      const [invChunks, purchChunks] = await Promise.all([
+        Promise.all(chunks.map(c => supabase.from('computed_inventory')
+          .select('item_code,image_url,qty,cost_per_unit,product_id').in('item_code', c))),
+        Promise.all(chunks.map(c => supabase.from('purchases')
+          .select('item_code,supplier_name').in('item_code', c).limit(2000))),
+      ])
+      const inv = invChunks.flatMap(r => r.data || [])
+      const purch = purchChunks.flatMap(r => r.data || [])
+
+      const invMap: Record<string,any> = {}; for (const p of inv) invMap[p.item_code] = p
+      const venMap: Record<string,string> = {}; for (const p of purch) { if (!venMap[p.item_code]) venMap[p.item_code] = p.supplier_name }
+
+      
 
       const items = Object.values(agg).map((i:any) => ({
         ...i,
@@ -406,13 +417,13 @@ export default function SalesPage() {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td style={{ ...S.totalTd, position:'sticky', left:0 }}>GRAND TOTAL</td>
-                      <td style={{ ...S.totalTd, ...NUM }}>{fmt_num(catGrandTotal.qty)}</td>
-                      <td style={{ ...S.totalTd, ...NUM }}>{catGrandTotal.revenue>0?fmt_inr(catGrandTotal.revenue):'—'}</td>
+                      <td style={{ ...S.totalTd, position:'sticky', left:0, cursor:'pointer' }} onClick={()=>setCatDrillKey({cat:'ALL',brand:'ALL'})}>GRAND TOTAL</td>
+                      <td style={{ ...S.totalTd, ...NUM, cursor:'pointer' }} onClick={()=>setCatDrillKey({cat:'ALL',brand:'ALL'})}>{fmt_num(catGrandTotal.qty)}</td>
+                      <td style={{ ...S.totalTd, ...NUM, cursor:'pointer' }} onClick={()=>setCatDrillKey({cat:'ALL',brand:'ALL'})}>{catGrandTotal.revenue>0?fmt_inr(catGrandTotal.revenue):'—'}</td>
                       {catBrands.map(b=>{
                         const bq = catPivotRows.reduce((s:number,row:any)=>s+(row.brands[b]?.qty||0),0)
                         const bv = catPivotRows.reduce((s:number,row:any)=>s+(row.brands[b]?.revenue||0),0)
-                        return (<><td key={b+'q'} style={{ ...S.totalTd, ...NUM }}>{fmt_num(bq)}</td><td key={b+'v'} style={{ ...S.totalTd, ...NUM }}>{bv>0?fmt_inr(bv):'—'}</td></>)
+                        return (<><td key={b+'q'} style={{ ...S.totalTd, ...NUM, cursor:'pointer' }} onClick={()=>setCatDrillKey({cat:'ALL',brand:b})}>{fmt_num(bq)}</td><td key={b+'v'} style={{ ...S.totalTd, ...NUM, cursor:'pointer' }} onClick={()=>setCatDrillKey({cat:'ALL',brand:b})}>{bv>0?fmt_inr(bv):'—'}</td></>)
                       })}
                     </tr>
                   </tfoot>
