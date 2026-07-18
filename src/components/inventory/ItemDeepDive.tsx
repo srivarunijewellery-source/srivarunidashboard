@@ -8,6 +8,10 @@ import TransferModal from './TransferModal'
 import { Search, ExternalLink, AlertTriangle, ArrowLeftRight } from 'lucide-react'
 import { format } from 'date-fns'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync.
+const SALES_SOURCE = 'sales_unified'
+
 const S = {
   section: { background:'#fff', borderRadius:16, border:'1px solid #e8d5b7', boxShadow:'0 2px 8px rgba(59,7,100,0.07)', overflow:'hidden' },
   th: { padding:'8px 10px', fontSize:10, fontWeight:700, color:'#6b5b7b', textTransform:'uppercase' as const, letterSpacing:0.5, background:'#f5f0e8', borderBottom:'1px solid #e8d5b7', whiteSpace:'nowrap' as const },
@@ -64,7 +68,7 @@ export default function ItemDeepDive() {
         supabase.from('computed_inventory').select('*').eq('item_code', itemCode).maybeSingle(),
         supabase.from('material_inward').select('inward_date,inward_qty,supplier_name,po_no,inward_no').eq('item_code', itemCode).order('inward_date', { ascending: false }),
         supabase.from('stock_adjustments').select('created_on,transaction_date,type,batch_no,in_qty,out_qty,adjusted_qty').eq('item_code', itemCode).order('created_on', { ascending: false }),
-        supabase.from('sales').select('date,voucher_no,qty,net_amount,selling_price,customer_name,mobile_no,sales_man').eq('item_code', itemCode).order('date', { ascending: false }),
+        supabase.from(SALES_SOURCE).select('date,voucher_no,qty,net_amount,selling_price,customer_name,mobile_no,sales_man').eq('item_code', itemCode).order('date', { ascending: false }),
         supabase.from('purchases').select('bill_date,voucher_no,supplier_name,rate,qty,inward_no').eq('item_code', itemCode).order('bill_date', { ascending: false }),
         fetchVendorMap([itemCode]),
       ])
