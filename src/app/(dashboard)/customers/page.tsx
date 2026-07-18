@@ -15,6 +15,14 @@ import { Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync.
+// NOTE: customer_name/mobile_no are NULL on API-sourced rows, so recent
+// walk-ins (since FTP broke) can't be individually searched/attributed here
+// -- they still count correctly in the aggregate insight totals, they just
+// won't surface under a specific customer's name/phone until FTP catches up.
+const SALES_SOURCE = 'sales_unified'
+
 const S = {
   section: { background:'#fff', borderRadius:16, border:'1px solid #e8d5b7', boxShadow:'0 2px 8px rgba(59,7,100,0.07)', overflow:'hidden' },
   th: { padding:'10px 14px', fontSize:11, fontWeight:600, color:'#6b5b7b', textTransform:'uppercase' as const, letterSpacing:0.5, background:'#f5f0e8', borderBottom:'1px solid #e8d5b7', whiteSpace:'nowrap' as const },
@@ -70,7 +78,7 @@ function CustomersInner() {
       setInsightsLoading(true)
       setSelectedBucket(null)
       try {
-        const sales = await fetchAllRows('sales', 'voucher_no,customer_name,mobile_no,net_amount,profit,qty,date', q => {
+        const sales = await fetchAllRows(SALES_SOURCE, 'voucher_no,customer_name,mobile_no,net_amount,profit,qty,date', q => {
           let qq = q.gte('date', iRange.from).lte('date', iRange.to)
           if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
           return qq
@@ -141,7 +149,7 @@ function CustomersInner() {
     if (search.length<2) { setOptions([]); return }
     const t = setTimeout(async () => {
       const isPhone = /^\d+$/.test(search)
-      const q = supabase.from('sales').select('customer_name,mobile_no').limit(300)
+      const q = supabase.from(SALES_SOURCE).select('customer_name,mobile_no').limit(300)
       const { data } = isPhone ? await q.ilike('mobile_no',`%${search}%`) : await q.ilike('customer_name',`%${search}%`)
       if (!data) return
       const seen = new Set<string>(); const opts: any[] = []
@@ -158,7 +166,7 @@ function CustomersInner() {
   const loadCustomer = useCallback(async (cust: any) => {
     setSelected(cust); setShowDrop(false); setSearch(cust.display); setLoadingSearch(true)
     try {
-      const q = supabase.from('sales').select('*').limit(5000)
+      const q = supabase.from(SALES_SOURCE).select('*').limit(5000)
       const { data } = cust.mobile ? await q.eq('mobile_no',cust.mobile) : await q.eq('customer_name',cust.name)
       if (!data) return
       const billMap: Record<string,any> = {}
