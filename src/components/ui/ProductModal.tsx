@@ -5,6 +5,10 @@ import { fmt_inr } from '@/lib/utils'
 import { X } from 'lucide-react'
 import HoverImage from './HoverImage'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync.
+const SALES_SOURCE = 'sales_unified'
+
 export type ProductHint = Partial<{
   product_name: string; category: string; brand: string
   mrp: number; landing_cost: number; image_url: string
@@ -34,7 +38,7 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
   // item's most recent sale, which is always captured at the register.
   useEffect(() => {
     let active = true
-    supabase.from('sales').select('mrp,date').eq('item_code', itemCode).gt('mrp', 0)
+    supabase.from(SALES_SOURCE).select('mrp,date').eq('item_code', itemCode).gt('mrp', 0)
       .order('date', { ascending: false }).limit(1).then(({ data }) => {
         if (active && data?.[0]) setFallbackMrp(data[0].mrp)
       })
