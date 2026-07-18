@@ -11,6 +11,24 @@ import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync.
+//
+// IMPORTANT: sales_man is NULL on every API-sourced row -- the Sales
+// Reporting API doesn't return it (VasyERP hasn't shared that field yet).
+// So this page splits sales into "attributed" (has a sales_man -- always
+// true for FTP rows, and will be true for API rows too once VasyERP adds
+// the field) and "unattributed". Commission is calculated ONLY on
+// attributed rows, so nobody gets paid commission on a bucket nobody can
+// verify. Team Revenue still reports the true total (attributed +
+// unattributed) so the number itself isn't understated -- the unattributed
+// slice is shown separately instead of hidden.
+//
+// TODO: once VasyERP's API includes sales_man, this attributed/unattributed
+// split becomes unnecessary -- every row will be attributed and this file
+// simplifies back to the pre-split version.
+const SALES_SOURCE = 'sales_unified'
+
 const MONTHLY_RATE = 0.005, HALF_RATE = 0.0025
 const COLORS = ['#3b0764','#6d28d9','#7c3aed','#a78bfa','#c4b5fd','#ede9ff']
 const S = {
@@ -25,32 +43,41 @@ export default function TeamPage() {
   const dateRange = getDateRange(grain, offset)
 
   const [rows, setRows] = useState<any[]>([])
+  const [unattributedRevenue, setUnattributedRevenue] = useState(0)
   const [loading, setLoading] = useState(false)
   const [chartType, setChartType] = useState<'sales'|'comm'>('sales')
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await fetchAllRows('sales', 'sales_man,net_amount,qty', q => {
+      const data = await fetchAllRows(SALES_SOURCE, 'sales_man,net_amount,qty', q => {
         let qq = q.gte('date',dateRange.from).lte('date',dateRange.to)
         if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
         return qq
       })
 
+      const attributed = data.filter(r => r.sales_man)
+      const unattributed = data.filter(r => !r.sales_man)
+
       const map: Record<string,any> = {}
-      for (const row of data) {
-        const sm = row.sales_man||'Unknown'
+      for (const row of attributed) {
+        const sm = row.sales_man
         if (!map[sm]) map[sm] = {name:sm,total:0,qty:0}
         map[sm].total += row.net_amount||0
         map[sm].qty += row.qty||0
       }
       setRows(Object.values(map).sort((a,b)=>b.total-a.total))
+      setUnattributedRevenue(unattributed.reduce((s,r)=>s+(r.net_amount||0),0))
     } finally { setLoading(false) }
   }, [dateRange.from, dateRange.to, selectedBranch])
 
   useEffect(() => { load() }, [load])
 
-  const totalSales = rows.reduce((s,r)=>s+r.total,0)
+  // "Team Revenue" reports the TRUE total (attributed + unattributed) so the
+  // headline number isn't understated. Commission is calculated only from
+  // `rows` (attributed), further down -- that math is unchanged from before.
+  const attributedSales = rows.reduce((s,r)=>s+r.total,0)
+  const totalSales = attributedSales + unattributedRevenue
   const totalComm  = rows.reduce((s,r)=>s+r.total*(MONTHLY_RATE+HALF_RATE),0)
   const chartData  = rows.map(r=>({ name:r.name, sales:r.total, commission:r.total*(MONTHLY_RATE+HALF_RATE) }))
 
@@ -76,6 +103,12 @@ export default function TeamPage() {
       <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:20 }}>
 
         <DateNav grain={grain} onGrainChange={setGrain} offset={offset} onOffsetChange={setOffset} label={dateRange.label} />
+
+        {unattributedRevenue > 0 && (
+          <div style={{ background:'#fef3c7', border:'1px solid #fde68a', borderRadius:12, padding:'12px 16px', fontSize:12.5, color:'#92400e' }}>
+            <strong>{fmt_inr(unattributedRevenue)}</strong> in this period has no salesperson on record (recent sales pulled via the VasyERP Sales Reporting API, which doesn't include sales_man yet) — included in Team Revenue below, but excluded from every commission calculation. Once VasyERP adds salesperson to the API, this will resolve automatically.
+          </div>
+        )}
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16 }}>
           <MetricCard label="Team Revenue" value={fmt_inr(totalSales)} sub={dateRange.label} accent="purple"/>
@@ -111,7 +144,7 @@ export default function TeamPage() {
         <div style={S.section}>
           <div style={{ padding:'14px 18px', borderBottom:'1px solid #e8d5b7' }}>
             <h2 className="font-display" style={{ color:'#3b0764', fontSize:17, margin:0 }}>Commission Detail — {dateRange.label}</h2>
-            <p style={{ fontSize:11, color:'#6b5b7b', marginTop:4 }}>0.5% monthly rate + 0.25% bonus rate applied to this period's total</p>
+            <p style={{ fontSize:11, color:'#6b5b7b', marginTop:4 }}>0.5% monthly rate + 0.25% bonus rate applied to this period's total · attributed sales only</p>
           </div>
           {loading?<div style={{ height:200, background:'#f5f0e8', margin:16, borderRadius:12 }}/>:(
             <div style={{ overflowX:'auto' }}>
@@ -142,7 +175,7 @@ export default function TeamPage() {
                   )}
                   <tr style={{ background:'#f5f0ff', borderTop:'2px solid #7c3aed' }}>
                     <td style={{ ...S.td, fontWeight:700, color:'#3b0764' }}>TOTAL</td>
-                    <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_inr(totalSales)}</td>
+                    <td style={{ ...S.td, textAlign:'right', fontWeight:700 }}>{fmt_inr(attributedSales)}</td>
                     <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#6b5b7b' }}>{fmt_num(rows.reduce((s,r)=>s+r.qty,0))}</td>
                     <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#059669' }}>{fmt_inr(rows.reduce((s,r)=>s+r.total*MONTHLY_RATE,0))}</td>
                     <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#7c3aed' }}>{fmt_inr(rows.reduce((s,r)=>s+r.total*HALF_RATE,0))}</td>
