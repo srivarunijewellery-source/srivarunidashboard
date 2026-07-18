@@ -149,12 +149,12 @@ export default function OverviewPage() {
             {loading?<div style={{ height:220,background:COLORS.bg,borderRadius:12 }}/>:(
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={trendData} margin={{ top:4,right:8,left:0,bottom:0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke=COLORS.border />
+                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                   <XAxis dataKey="label" tick={{ fontSize:10,fill:COLORS.textMuted }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize:10,fill:COLORS.textMuted }} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}k`} />
                   <Tooltip content={<Tip />} />
-                  <Bar dataKey="revenue" name="Revenue" fill=COLORS.accent radius={[4,4,0,0]} />
-                  <Bar dataKey="profit" name="Profit" fill=COLORS.accentLight radius={[4,4,0,0]} />
+                  <Bar dataKey="revenue" name="Revenue" fill={COLORS.accent} radius={[4,4,0,0]} />
+                  <Bar dataKey="profit" name="Profit" fill={COLORS.accentLight} radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
