@@ -17,12 +17,13 @@ import CustomersListModal from '@/components/ui/CustomersListModal'
 import { format, startOfWeek } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, ComposedChart, Legend } from 'recharts'
 import { ChevronDown, X, Truck } from 'lucide-react'
+import { COLORS } from '@/lib/theme'
 
 const S = {
-  section: { background: '#fff', borderRadius: 16, border: '1px solid #ecd9d3', boxShadow: '0 2px 8px rgba(92,26,43,0.07)', overflow: 'hidden' },
-  th: { padding:'9px 12px', fontSize:10, fontWeight:700, color:'#8f6b64', textTransform:'uppercase' as const, letterSpacing:0.6, background:'#fdf6f3', borderBottom:'2px solid #ecd9d3', borderRight:'1px solid #f2e2dc', whiteSpace:'nowrap' as const },
-  td: { padding:'7px 12px', fontSize:12.5, color:'#2b1013', borderBottom:'1px solid #f6e9e4', borderRight:'1px solid #fdf6f3', whiteSpace:'nowrap' as const },
-  totalTd: { padding:'8px 12px', fontSize:12.5, color:'#5c1a2b', borderTop:'2px solid #b76e79', borderRight:'1px solid #e8c2c7', whiteSpace:'nowrap' as const, fontWeight:700, background:'#fbeee9' },
+  section: { background: COLORS.white, borderRadius: 16, border: '1px solid #ecd9d3', boxShadow: '0 2px 8px rgba(69,20,31,0.07)', overflow: 'hidden' },
+  th: { padding:'9px 12px', fontSize:10, fontWeight:700, color:COLORS.textMuted, textTransform:'uppercase' as const, letterSpacing:0.6, background:COLORS.bg, borderBottom:'2px solid #ecd9d3', borderRight:'1px solid #f2e2dc', whiteSpace:'nowrap' as const },
+  td: { padding:'7px 12px', fontSize:12.5, color:COLORS.text, borderBottom:'1px solid #f6e9e4', borderRight:'1px solid #fdf6f3', whiteSpace:'nowrap' as const },
+  totalTd: { padding:'8px 12px', fontSize:12.5, color:COLORS.ink, borderTop:'2px solid #b76e79', borderRight:'1px solid #e8c2c7', whiteSpace:'nowrap' as const, fontWeight:700, background:COLORS.faint },
 }
 const NUM: React.CSSProperties = { fontVariantNumeric: 'tabular-nums', textAlign: 'right' }
 const PAGE_SIZE = 25
@@ -40,13 +41,13 @@ const SALES_SOURCE = 'sales_unified'
 const Tip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
-    <div style={{ background: '#fff', border: '1px solid #ecd9d3', borderRadius: 12, padding: '10px 14px', boxShadow: '0 4px 16px rgba(92,26,43,0.12)', fontSize: 12 }}>
-      <p style={{ fontWeight: 700, color: '#5c1a2b', marginBottom: 4 }}>{label}</p>
+    <div style={{ background: COLORS.white, border: '1px solid #ecd9d3', borderRadius: 12, padding: '10px 14px', boxShadow: '0 4px 16px rgba(69,20,31,0.12)', fontSize: 12 }}>
+      <p style={{ fontWeight: 700, color: COLORS.ink, marginBottom: 4 }}>{label}</p>
       {payload.map((p: any) => (
         <div key={p.name} style={{ display: 'flex', gap: 8, marginTop: 2 }}>
           <span style={{ color: p.color, fontWeight: 700 }}>■</span>
-          <span style={{ color: '#8f6b64' }}>{p.name}:</span>
-          <span style={{ fontWeight: 600, color: '#2b1013' }}>{p.name === 'Qty' ? fmt_num(p.value) : fmt_inr(p.value)}</span>
+          <span style={{ color: COLORS.textMuted }}>{p.name}:</span>
+          <span style={{ fontWeight: 600, color: COLORS.text }}>{p.name === 'Qty' ? fmt_num(p.value) : fmt_inr(p.value)}</span>
         </div>
       ))}
     </div>
@@ -57,26 +58,26 @@ function VendorFilterSelect({ value, onChange, options }: { value: string; onCha
   const isActive = value !== 'ALL'
   return (
     <div>
-      <label style={{ fontSize:10, color:'#a1776f', fontWeight:700, textTransform:'uppercase', letterSpacing:0.8, display:'flex', alignItems:'center', gap:5, marginBottom:6 }}>
+      <label style={{ fontSize:10, color:COLORS.textLabel, fontWeight:700, textTransform:'uppercase', letterSpacing:0.8, display:'flex', alignItems:'center', gap:5, marginBottom:6 }}>
         <Truck size={11}/> Vendor
       </label>
       <div style={{ position:'relative' }}>
         <select value={value} onChange={e=>onChange(e.target.value)} style={{
           appearance:'none', WebkitAppearance:'none',
           padding:'9px 34px 9px 14px', borderRadius:10, fontSize:13, fontWeight:isActive?600:500,
-          color: isActive?'#5c1a2b':'#6b4a45',
-          background: isActive?'#f0d8db':'#fdf6f3',
-          border:`1.5px solid ${isActive?'#d9a3ab':'#ecd9d3'}`,
+          color: isActive?COLORS.ink:COLORS.textMutedDark,
+          background: isActive?COLORS.pale:COLORS.bg,
+          border:`1.5px solid ${isActive?COLORS.accentLight:COLORS.border}`,
           minWidth:170, cursor:'pointer', outline:'none',
         }}>
           <option value="ALL">All Vendors</option>
           {options.map(o=><option key={o} value={o}>{o}</option>)}
         </select>
-        <ChevronDown size={14} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', color:isActive?'#b76e79':'#b89892', pointerEvents:'none' }}/>
+        <ChevronDown size={14} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', color:isActive?COLORS.accent:COLORS.textFaint, pointerEvents:'none' }}/>
         {isActive && (
           <button onClick={()=>onChange('ALL')} title="Clear vendor" style={{
             position:'absolute', right:-8, top:-8, width:18, height:18, borderRadius:'50%',
-            background:'#b76e79', color:'#fff', border:'2px solid #fff', cursor:'pointer',
+            background:COLORS.accent, color:COLORS.white, border:'2px solid #fff', cursor:'pointer',
             display:'flex', alignItems:'center', justifyContent:'center', padding:0,
           }}><X size={10}/></button>
         )}
@@ -278,12 +279,12 @@ export default function SalesPage() {
   const [showCustomers, setShowCustomers] = useState(false)
 
   return (
-    <div style={{ minHeight: '100%', background: '#fdf6f3' }}>
+    <div style={{ minHeight: '100%', background: COLORS.bg }}>
       <PageHeader title="Sales" subtitle="Revenue, profitability and per-product detail"
         actions={
           <div style={{ display:'flex', gap:8 }}>
             {(['summary','details','category'] as const).map(v=>(
-              <button key={v} onClick={()=>setView(v)} style={{ padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer', border:`1px solid ${view===v?'#5c1a2b':'#ecd9d3'}`, background:view===v?'#5c1a2b':'#fff', color:view===v?'#fff':'#8f6b64' }}>
+              <button key={v} onClick={()=>setView(v)} style={{ padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer', border:`1px solid ${view===v?COLORS.ink:COLORS.border}`, background:view===v?COLORS.ink:COLORS.white, color:view===v?COLORS.white:COLORS.textMuted }}>
                 {v==='summary'?'📊 Summary':v==='details'?'🔍 Details':'🗂️ Category Summary'}
               </button>
             ))}
@@ -297,17 +298,17 @@ export default function SalesPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
               <GrainSelector value={grain} onChange={g => setGrain(g)} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label style={{ fontSize: 10, color: '#a1776f', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>From</label>
+                <label style={{ fontSize: 10, color: COLORS.textLabel, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>From</label>
                 <input type="date" value={summaryFrom} min={DATA_START} max={summaryTo}
                   onChange={e => setSummaryFrom(e.target.value)}
-                  style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #ecd9d3', fontSize: 12.5, color: '#2b1013', background: '#fff' }} />
-                <label style={{ fontSize: 10, color: '#a1776f', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>To</label>
+                  style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #ecd9d3', fontSize: 12.5, color: COLORS.text, background: COLORS.white }} />
+                <label style={{ fontSize: 10, color: COLORS.textLabel, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>To</label>
                 <input type="date" value={summaryTo} min={summaryFrom} max={new Date().toISOString().split('T')[0]}
                   onChange={e => setSummaryTo(e.target.value)}
-                  style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #ecd9d3', fontSize: 12.5, color: '#2b1013', background: '#fff' }} />
+                  style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #ecd9d3', fontSize: 12.5, color: COLORS.text, background: COLORS.white }} />
                 {(summaryFrom !== DATA_START || summaryTo !== new Date().toISOString().split('T')[0]) && (
                   <button onClick={() => { setSummaryFrom(DATA_START); setSummaryTo(new Date().toISOString().split('T')[0]) }}
-                    style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #d9a3ab', background: '#f0d8db', color: '#5c1a2b', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #d9a3ab', background: COLORS.pale, color: COLORS.ink, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                     Reset
                   </button>
                 )}
@@ -323,19 +324,19 @@ export default function SalesPage() {
             </div>
 
             <div style={{ ...S.section, padding: 24 }}>
-              <h2 className="font-display" style={{ color: '#5c1a2b', fontSize: 18, margin: '0 0 20px' }}>Revenue & Profit by {grain.charAt(0).toUpperCase()+grain.slice(1)}</h2>
-              {loading ? <div style={{ height: 280, background: '#fdf6f3', borderRadius: 12 }} /> : (
+              <h2 className="font-display" style={{ color: COLORS.ink, fontSize: 18, margin: '0 0 20px' }}>Revenue & Profit by {grain.charAt(0).toUpperCase()+grain.slice(1)}</h2>
+              {loading ? <div style={{ height: 280, background: COLORS.bg, borderRadius: 12 }} /> : (
                 <ResponsiveContainer width="100%" height={280}>
                   <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ecd9d3" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#8f6b64' }} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="l" tick={{ fontSize: 11, fill: '#8f6b64' }} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}k`} />
-                    <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 11, fill: '#8f6b64' }} axisLine={false} tickLine={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke=COLORS.border />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="l" tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}k`} />
+                    <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} />
                     <Tooltip content={<Tip />} />
                     <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                    <Bar yAxisId="l" dataKey="revenue" name="Revenue" fill="#b76e79" radius={[4,4,0,0]} />
-                    <Bar yAxisId="l" dataKey="profit" name="Profit" fill="#d9a3ab" radius={[4,4,0,0]} />
-                    <Line yAxisId="r" type="monotone" dataKey="qty" name="Qty" stroke="#f59e0b" strokeWidth={2} dot={{ r:3, fill:'#f59e0b' }} />
+                    <Bar yAxisId="l" dataKey="revenue" name="Revenue" fill=COLORS.accent radius={[4,4,0,0]} />
+                    <Bar yAxisId="l" dataKey="profit" name="Profit" fill=COLORS.accentLight radius={[4,4,0,0]} />
+                    <Line yAxisId="r" type="monotone" dataKey="qty" name="Qty" stroke=COLORS.warning strokeWidth={2} dot={{ r:3, fill:COLORS.warning }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               )}
@@ -365,10 +366,10 @@ export default function SalesPage() {
 
             {dLoading ? (
               <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
-                {Array.from({length:10}).map((_,i)=><div key={i} style={{ borderRadius:16, background:'#fff', aspectRatio:'3/4', border:'1px solid #ecd9d3' }}/>)}
+                {Array.from({length:10}).map((_,i)=><div key={i} style={{ borderRadius:16, background:COLORS.white, aspectRatio:'3/4', border:'1px solid #ecd9d3' }}/>)}
               </div>
             ) : filteredSoldItems.length===0 ? (
-              <div style={{ textAlign:'center', padding:'80px 0', color:'#8f6b64' }}>
+              <div style={{ textAlign:'center', padding:'80px 0', color:COLORS.textMuted }}>
                 <div style={{ fontSize:48, marginBottom:12 }}>💍</div>
                 <p style={{ fontSize:16, fontWeight:500 }}>No sales for {dateRange.label}</p>
               </div>
@@ -379,9 +380,9 @@ export default function SalesPage() {
                 </div>
                 {totalPages>1&&(
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, paddingTop:8 }}>
-                    <button onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0} style={{ padding:'8px 20px', borderRadius:8, border:'1px solid #ecd9d3', background:'#fff', fontSize:13, cursor:page===0?'default':'pointer', color:page===0?'#ccc':'#5c1a2b' }}>← Prev</button>
-                    <span style={{ fontSize:13, color:'#8f6b64' }}>{page*PAGE_SIZE+1}–{Math.min((page+1)*PAGE_SIZE,filteredSoldItems.length)} of {filteredSoldItems.length}</span>
-                    <button onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page>=totalPages-1} style={{ padding:'8px 20px', borderRadius:8, border:'1px solid #ecd9d3', background:'#fff', fontSize:13, cursor:page>=totalPages-1?'default':'pointer', color:page>=totalPages-1?'#ccc':'#5c1a2b' }}>Next →</button>
+                    <button onClick={()=>setPage(p=>Math.max(0,p-1))} disabled={page===0} style={{ padding:'8px 20px', borderRadius:8, border:'1px solid #ecd9d3', background:COLORS.white, fontSize:13, cursor:page===0?'default':'pointer', color:page===0?'#ccc':COLORS.ink }}>← Prev</button>
+                    <span style={{ fontSize:13, color:COLORS.textMuted }}>{page*PAGE_SIZE+1}–{Math.min((page+1)*PAGE_SIZE,filteredSoldItems.length)} of {filteredSoldItems.length}</span>
+                    <button onClick={()=>setPage(p=>Math.min(totalPages-1,p+1))} disabled={page>=totalPages-1} style={{ padding:'8px 20px', borderRadius:8, border:'1px solid #ecd9d3', background:COLORS.white, fontSize:13, cursor:page>=totalPages-1?'default':'pointer', color:page>=totalPages-1?'#ccc':COLORS.ink }}>Next →</button>
                   </div>
                 )}
               </>
@@ -397,11 +398,11 @@ export default function SalesPage() {
               <MetricCard label="Categories" value={`${catPivotRows.length}`} accent="beige"/>
             </div>
 
-            {dLoading ? <div style={{ height:200, background:'#fff', borderRadius:16, border:'1px solid #ecd9d3' }}/> : (
+            {dLoading ? <div style={{ height:200, background:COLORS.white, borderRadius:16, border:'1px solid #ecd9d3' }}/> : (
             <div style={S.section}>
               <div style={{ padding:'12px 18px', borderBottom:'1px solid #ecd9d3', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <p style={{ fontSize:12, color:'#8f6b64', margin:0 }}>Click any cell for the sold-items list</p>
-                <button onClick={()=>setCatColSortDir(d=>d==='desc'?'asc':'desc')} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', borderRadius:8, cursor:'pointer', border:'1px solid #ecd9d3', background:'#fff', fontSize:11, fontWeight:600, color:'#5c1a2b' }}>
+                <p style={{ fontSize:12, color:COLORS.textMuted, margin:0 }}>Click any cell for the sold-items list</p>
+                <button onClick={()=>setCatColSortDir(d=>d==='desc'?'asc':'desc')} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', borderRadius:8, cursor:'pointer', border:'1px solid #ecd9d3', background:COLORS.white, fontSize:11, fontWeight:600, color:COLORS.ink }}>
                   Brands: {catColSortDir==='desc'?'High → Low':'Low → High'}<SortIndicator active dir={catColSortDir}/>
                 </button>
               </div>
@@ -409,34 +410,34 @@ export default function SalesPage() {
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead>
                     <tr>
-                      <th onClick={()=>toggleCatSort('category')} style={{ ...S.th, background:'#5c1a2b', color:'#fff', position:'sticky', left:0, top:0, minWidth:140, zIndex:3, cursor:'pointer' }}>Category<SortIndicator active={catSortKey==='category'} dir={catSortDir}/></th>
-                      <th colSpan={2} style={{ ...S.th, background:'#6f2438', color:'#fff', textAlign:'center', position:'sticky', top:0, zIndex:2 }}>TOTAL</th>
-                      {catBrands.map(b=><th key={b} colSpan={2} style={{ ...S.th, background:'#5c1a2b', color:'#fff', textAlign:'center', minWidth:120, position:'sticky', top:0, zIndex:1 }}>{b}</th>)}
+                      <th onClick={()=>toggleCatSort('category')} style={{ ...S.th, background:COLORS.ink, color:COLORS.white, position:'sticky', left:0, top:0, minWidth:140, zIndex:3, cursor:'pointer' }}>Category<SortIndicator active={catSortKey==='category'} dir={catSortDir}/></th>
+                      <th colSpan={2} style={{ ...S.th, background:COLORS.inkDeep, color:COLORS.white, textAlign:'center', position:'sticky', top:0, zIndex:2 }}>TOTAL</th>
+                      {catBrands.map(b=><th key={b} colSpan={2} style={{ ...S.th, background:COLORS.ink, color:COLORS.white, textAlign:'center', minWidth:120, position:'sticky', top:0, zIndex:1 }}>{b}</th>)}
                     </tr>
                     <tr>
-                      <th style={{ ...S.th, background:'#45141f', position:'sticky', left:0, top:32, zIndex:3 }}></th>
-                      <th onClick={()=>toggleCatSort('total_qty')} style={{ ...S.th, background:'#5c1a2b', color:'#d9a3ab', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>Qty<SortIndicator active={catSortKey==='total_qty'} dir={catSortDir}/></th>
-                      <th onClick={()=>toggleCatSort('total_revenue')} style={{ ...S.th, background:'#5c1a2b', color:'#d9a3ab', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>Revenue<SortIndicator active={catSortKey==='total_revenue'} dir={catSortDir}/></th>
+                      <th style={{ ...S.th, background:COLORS.inkDarker, position:'sticky', left:0, top:32, zIndex:3 }}></th>
+                      <th onClick={()=>toggleCatSort('total_qty')} style={{ ...S.th, background:COLORS.ink, color:COLORS.accentLight, textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>Qty<SortIndicator active={catSortKey==='total_qty'} dir={catSortDir}/></th>
+                      <th onClick={()=>toggleCatSort('total_revenue')} style={{ ...S.th, background:COLORS.ink, color:COLORS.accentLight, textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:2, cursor:'pointer' }}>Revenue<SortIndicator active={catSortKey==='total_revenue'} dir={catSortDir}/></th>
                       {catBrands.map(b=>(
                         <>
-                          <th key={b+'q'} onClick={()=>toggleCatSort(`brand::${b}::qty`)} style={{ ...S.th, background:'#45141f', color:'#d9a3ab', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>Qty<SortIndicator active={catSortKey===`brand::${b}::qty`} dir={catSortDir}/></th>
-                          <th key={b+'v'} onClick={()=>toggleCatSort(`brand::${b}::revenue`)} style={{ ...S.th, background:'#45141f', color:'#d9a3ab', textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>Revenue<SortIndicator active={catSortKey===`brand::${b}::revenue`} dir={catSortDir}/></th>
+                          <th key={b+'q'} onClick={()=>toggleCatSort(`brand::${b}::qty`)} style={{ ...S.th, background:COLORS.inkDarker, color:COLORS.accentLight, textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>Qty<SortIndicator active={catSortKey===`brand::${b}::qty`} dir={catSortDir}/></th>
+                          <th key={b+'v'} onClick={()=>toggleCatSort(`brand::${b}::revenue`)} style={{ ...S.th, background:COLORS.inkDarker, color:COLORS.accentLight, textAlign:'right', fontSize:9.5, position:'sticky', top:32, zIndex:1, cursor:'pointer' }}>Revenue<SortIndicator active={catSortKey===`brand::${b}::revenue`} dir={catSortDir}/></th>
                         </>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {sortedCatPivotRows.map((row:any,ri)=>(
-                      <tr key={row.category} className="inv-row" style={{ background:ri%2===0?'#fff':'#fbeee9' }}>
-                        <td style={{ ...S.td, color:'#5c1a2b', fontWeight:700, position:'sticky', left:0, background:ri%2===0?'#fff':'#fbeee9', cursor:'pointer' }} onClick={()=>setCatDrillKey({cat:row.category,brand:'ALL'})}>{row.category}</td>
+                      <tr key={row.category} className="inv-row" style={{ background:ri%2===0?COLORS.white:COLORS.faint }}>
+                        <td style={{ ...S.td, color:COLORS.ink, fontWeight:700, position:'sticky', left:0, background:ri%2===0?COLORS.white:COLORS.faint, cursor:'pointer' }} onClick={()=>setCatDrillKey({cat:row.category,brand:'ALL'})}>{row.category}</td>
                         <td style={{ ...S.td, ...NUM, fontWeight:700, cursor:'pointer' }} onClick={()=>setCatDrillKey({cat:row.category,brand:'ALL'})}>{fmt_num(row.total.qty)}</td>
-                        <td style={{ ...S.td, ...NUM, cursor:'pointer', color:'#059669', fontWeight:600 }} onClick={()=>setCatDrillKey({cat:row.category,brand:'ALL'})}>{row.total.revenue>0?fmt_inr(row.total.revenue):'—'}</td>
+                        <td style={{ ...S.td, ...NUM, cursor:'pointer', color:COLORS.success, fontWeight:600 }} onClick={()=>setCatDrillKey({cat:row.category,brand:'ALL'})}>{row.total.revenue>0?fmt_inr(row.total.revenue):'—'}</td>
                         {catBrands.map(b=>{
                           const cell=row.brands[b]
                           return (
                             <>
-                              <td key={b+'q'} style={{ ...S.td, ...NUM, cursor:cell?'pointer':'default', color:cell?'#2b1013':'#ddc6c2' }} onClick={()=>cell&&setCatDrillKey({cat:row.category,brand:b})}>{cell?fmt_num(cell.qty):'—'}</td>
-                              <td key={b+'v'} style={{ ...S.td, ...NUM, cursor:cell?'pointer':'default', color:cell?'#059669':'#ddc6c2' }} onClick={()=>cell&&setCatDrillKey({cat:row.category,brand:b})}>{cell&&cell.revenue>0?fmt_inr(cell.revenue):cell?'—':''}</td>
+                              <td key={b+'q'} style={{ ...S.td, ...NUM, cursor:cell?'pointer':'default', color:cell?COLORS.text:COLORS.textDisabled }} onClick={()=>cell&&setCatDrillKey({cat:row.category,brand:b})}>{cell?fmt_num(cell.qty):'—'}</td>
+                              <td key={b+'v'} style={{ ...S.td, ...NUM, cursor:cell?'pointer':'default', color:cell?COLORS.success:COLORS.textDisabled }} onClick={()=>cell&&setCatDrillKey({cat:row.category,brand:b})}>{cell&&cell.revenue>0?fmt_inr(cell.revenue):cell?'—':''}</td>
                             </>
                           )
                         })}
@@ -464,13 +465,13 @@ export default function SalesPage() {
               <div style={S.section}>
                 <div style={{ padding:'14px 18px', borderBottom:'1px solid #ecd9d3', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
                   <div>
-                    <h3 className="font-display" style={{ color:'#5c1a2b', margin:0, fontSize:15 }}>
+                    <h3 className="font-display" style={{ color:COLORS.ink, margin:0, fontSize:15 }}>
                       {catDrillKey.cat==='ALL'?'All Sold Items':catDrillKey.brand==='ALL'?catDrillKey.cat:`${catDrillKey.cat} — ${catDrillKey.brand}`}
                     </h3>
-                    <p style={{ fontSize:11, color:'#8f6b64', marginTop:2 }}>{catDrillItems.length} items · {fmt_num(catDrillItems.reduce((s:number,i:any)=>s+i.qty_sold,0))} units sold · {dateRange.label}</p>
+                    <p style={{ fontSize:11, color:COLORS.textMuted, marginTop:2 }}>{catDrillItems.length} items · {fmt_num(catDrillItems.reduce((s:number,i:any)=>s+i.qty_sold,0))} units sold · {dateRange.label}</p>
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <select value={catDrillSortField} onChange={e=>setCatDrillSortField(e.target.value)} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #ecd9d3', fontSize:12, color:'#5c1a2b', background:'#fff' }}>
+                    <select value={catDrillSortField} onChange={e=>setCatDrillSortField(e.target.value)} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #ecd9d3', fontSize:12, color:COLORS.ink, background:COLORS.white }}>
                       <option value="revenue">Sort: Revenue</option>
                       <option value="qty_sold">Sort: Qty Sold</option>
                       <option value="profit">Sort: Profit</option>
@@ -478,10 +479,10 @@ export default function SalesPage() {
                       <option value="brand">Sort: Brand</option>
                       <option value="vendor">Sort: Vendor</option>
                     </select>
-                    <button onClick={()=>setCatDrillSortDir(d=>d==='desc'?'asc':'desc')} title="Flip sort direction" style={{ padding:'6px 8px', borderRadius:8, border:'1px solid #ecd9d3', background:'#fff', cursor:'pointer', display:'flex', color:'#5c1a2b' }}>
+                    <button onClick={()=>setCatDrillSortDir(d=>d==='desc'?'asc':'desc')} title="Flip sort direction" style={{ padding:'6px 8px', borderRadius:8, border:'1px solid #ecd9d3', background:COLORS.white, cursor:'pointer', display:'flex', color:COLORS.ink }}>
                       <SortIndicator active dir={catDrillSortDir}/>
                     </button>
-                    <button onClick={()=>setCatDrillKey(null)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #ecd9d3', background:'#fff', fontSize:12, cursor:'pointer', color:'#8f6b64' }}>Close ×</button>
+                    <button onClick={()=>setCatDrillKey(null)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #ecd9d3', background:COLORS.white, fontSize:12, cursor:'pointer', color:COLORS.textMuted }}>Close ×</button>
                   </div>
                 </div>
                 <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
@@ -489,9 +490,9 @@ export default function SalesPage() {
                 </div>
                 {catDrillTotalPages>1&&(
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12, padding:'0 0 16px' }}>
-                    <button onClick={()=>setCatDrillPage(p=>Math.max(0,p-1))} disabled={catDrillPage===0} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #ecd9d3', background:'#fff', fontSize:12, cursor:catDrillPage===0?'default':'pointer', color:catDrillPage===0?'#ccc':'#5c1a2b' }}>← Prev</button>
-                    <span style={{ fontSize:12, color:'#8f6b64' }}>{catDrillPage*DRILL_PAGE_SIZE+1}–{Math.min((catDrillPage+1)*DRILL_PAGE_SIZE,sortedCatDrillItems.length)} of {sortedCatDrillItems.length}</span>
-                    <button onClick={()=>setCatDrillPage(p=>Math.min(catDrillTotalPages-1,p+1))} disabled={catDrillPage>=catDrillTotalPages-1} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #ecd9d3', background:'#fff', fontSize:12, cursor:catDrillPage>=catDrillTotalPages-1?'default':'pointer', color:catDrillPage>=catDrillTotalPages-1?'#ccc':'#5c1a2b' }}>Next →</button>
+                    <button onClick={()=>setCatDrillPage(p=>Math.max(0,p-1))} disabled={catDrillPage===0} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #ecd9d3', background:COLORS.white, fontSize:12, cursor:catDrillPage===0?'default':'pointer', color:catDrillPage===0?'#ccc':COLORS.ink }}>← Prev</button>
+                    <span style={{ fontSize:12, color:COLORS.textMuted }}>{catDrillPage*DRILL_PAGE_SIZE+1}–{Math.min((catDrillPage+1)*DRILL_PAGE_SIZE,sortedCatDrillItems.length)} of {sortedCatDrillItems.length}</span>
+                    <button onClick={()=>setCatDrillPage(p=>Math.min(catDrillTotalPages-1,p+1))} disabled={catDrillPage>=catDrillTotalPages-1} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid #ecd9d3', background:COLORS.white, fontSize:12, cursor:catDrillPage>=catDrillTotalPages-1?'default':'pointer', color:catDrillPage>=catDrillTotalPages-1?'#ccc':COLORS.ink }}>Next →</button>
                   </div>
                 )}
               </div>
