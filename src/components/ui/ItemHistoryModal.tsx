@@ -5,6 +5,10 @@ import { fmt_inr, fmt_num, parseDate } from '@/lib/utils'
 import { X, ShoppingBag, PackagePlus, ExternalLink } from 'lucide-react'
 import { format } from 'date-fns'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync.
+const SALES_SOURCE = 'sales_unified'
+
 export default function ItemHistoryModal({ itemCode, productName, onClose, onOpenOrder }: {
   itemCode: string; productName?: string; onClose: () => void; onOpenOrder?: (voucherNo: string) => void
 }) {
@@ -16,7 +20,7 @@ export default function ItemHistoryModal({ itemCode, productName, onClose, onOpe
     let active = true
     setLoading(true)
     Promise.all([
-      supabase.from('sales').select('date,voucher_no,qty,net_amount,selling_price,customer_name,mobile_no,sales_man').eq('item_code', itemCode).order('date', { ascending: false }),
+      supabase.from(SALES_SOURCE).select('date,voucher_no,qty,net_amount,selling_price,customer_name,mobile_no,sales_man').eq('item_code', itemCode).order('date', { ascending: false }),
       supabase.from('material_inward').select('inward_date,inward_qty,supplier_name,po_no,inward_no').eq('item_code', itemCode).order('inward_date', { ascending: false }),
       // inward_amount on material_inward is the TOTAL for the whole
       // inward batch (can span 100+ different items), NOT a per-item
