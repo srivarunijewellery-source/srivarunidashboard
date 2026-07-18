@@ -7,6 +7,11 @@ import SortIndicator from './SortIndicator'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync. See
+// the view's SQL comment for the full explanation.
+const SALES_SOURCE = 'sales_unified'
+
 export default function BillsListModal({ from, to, label, branchId, onClose, onOpenOrder }: {
   from: string; to: string; label: string; branchId?: string | null; onClose: () => void; onOpenOrder: (voucherNo: string) => void
 }) {
@@ -16,7 +21,7 @@ export default function BillsListModal({ from, to, label, branchId, onClose, onO
   useEffect(() => {
     let active = true
     setLoading(true)
-    fetchAllRows('sales', 'voucher_no,date,customer_name,mobile_no,qty,net_amount', q => {
+    fetchAllRows(SALES_SOURCE, 'voucher_no,date,customer_name,mobile_no,qty,net_amount', q => {
       let qq = q.gte('date', from).lte('date', to)
       if (branchId) qq = qq.eq('branch_id', branchId)
       return qq
