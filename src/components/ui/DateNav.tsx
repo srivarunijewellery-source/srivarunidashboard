@@ -2,6 +2,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import GrainSelector from './GrainSelector'
 import type { Grain } from '@/lib/utils'
+import { COLORS } from '@/lib/theme'
 
 /**
  * Shared day/week/month/quarter/year navigable filter — the same pattern
@@ -21,11 +22,11 @@ export default function DateNav({
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
       <GrainSelector value={grain} onChange={g => { onGrainChange(g); onOffsetChange(() => 0) }} options={grainOptions} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button onClick={() => onOffsetChange(o => o + 1)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #ecd9d3', background: '#fff', cursor: 'pointer', color: '#5c1a2b' }}>
+        <button onClick={() => onOffsetChange(o => o + 1)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #ecd9d3', background: '#fff', cursor: 'pointer', color: COLORS.ink }}>
           <ChevronLeft size={16} />
         </button>
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#2b1013', minWidth: 140, textAlign: 'center' }}>{label}</span>
-        <button onClick={() => onOffsetChange(o => Math.max(0, o - 1))} disabled={offset === 0} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #ecd9d3', background: '#fff', cursor: offset === 0 ? 'default' : 'pointer', color: offset === 0 ? '#ccc' : '#5c1a2b' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.text, minWidth: 140, textAlign: 'center' }}>{label}</span>
+        <button onClick={() => onOffsetChange(o => Math.max(0, o - 1))} disabled={offset === 0} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #ecd9d3', background: '#fff', cursor: offset === 0 ? 'default' : 'pointer', color: offset === 0 ? '#ccc' : COLORS.ink }}>
           <ChevronRight size={16} />
         </button>
       </div>
