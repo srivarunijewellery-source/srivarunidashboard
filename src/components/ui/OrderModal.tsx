@@ -5,6 +5,12 @@ import { fmt_inr, fmt_pct, parseDate } from '@/lib/utils'
 import { format } from 'date-fns'
 import { X } from 'lucide-react'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync.
+// NOTE: profit/landing_cost/sales_man are NULL for API-sourced rows (recent
+// bills before FTP catches up) since that data isn't available from the API.
+const SALES_SOURCE = 'sales_unified'
+
 export default function OrderModal({ voucherNo, onClose }: { voucherNo: string; onClose: () => void }) {
   const [lines, setLines] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -12,7 +18,7 @@ export default function OrderModal({ voucherNo, onClose }: { voucherNo: string; 
   useEffect(() => {
     let active = true
     setLoading(true)
-    supabase.from('sales').select('*').eq('voucher_no', voucherNo).limit(200).then(async ({ data }) => {
+    supabase.from(SALES_SOURCE).select('*').eq('voucher_no', voucherNo).limit(200).then(async ({ data }) => {
       if (!active) return
       const rows = data || []
       const vendorMap = await fetchVendorMap(rows.map(r=>r.item_code))
