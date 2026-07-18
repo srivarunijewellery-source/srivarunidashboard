@@ -328,15 +328,15 @@ export default function SalesPage() {
               {loading ? <div style={{ height: 280, background: COLORS.bg, borderRadius: 12 }} /> : (
                 <ResponsiveContainer width="100%" height={280}>
                   <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke=COLORS.border />
+                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} />
                     <YAxis yAxisId="l" tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}k`} />
                     <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 11, fill: COLORS.textMuted }} axisLine={false} tickLine={false} />
                     <Tooltip content={<Tip />} />
                     <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                    <Bar yAxisId="l" dataKey="revenue" name="Revenue" fill=COLORS.accent radius={[4,4,0,0]} />
-                    <Bar yAxisId="l" dataKey="profit" name="Profit" fill=COLORS.accentLight radius={[4,4,0,0]} />
-                    <Line yAxisId="r" type="monotone" dataKey="qty" name="Qty" stroke=COLORS.warning strokeWidth={2} dot={{ r:3, fill:COLORS.warning }} />
+                    <Bar yAxisId="l" dataKey="revenue" name="Revenue" fill={COLORS.accent} radius={[4,4,0,0]} />
+                    <Bar yAxisId="l" dataKey="profit" name="Profit" fill={COLORS.accentLight} radius={[4,4,0,0]} />
+                    <Line yAxisId="r" type="monotone" dataKey="qty" name="Qty" stroke={COLORS.warning} strokeWidth={2} dot={{ r:3, fill:COLORS.warning }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               )}
