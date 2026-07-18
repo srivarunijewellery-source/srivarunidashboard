@@ -12,8 +12,9 @@ import DateNav from '@/components/ui/DateNav'
 import MetricCard from '@/components/ui/MetricCard'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
+import { COLORS, CHART_RAMP } from '@/lib/theme'
 
-const PURPLE = ['#5c1a2b','#833044','#b76e79','#c98d95','#d9a3ab','#f6e3df']
+const PURPLE = CHART_RAMP
 
 // sales_unified = FTP-sourced `sales` for every date it covers, backfilled with
 // API-sourced `sales_api` for anything after FTP's last successful sync. See
@@ -22,21 +23,21 @@ const PURPLE = ['#5c1a2b','#833044','#b76e79','#c98d95','#d9a3ab','#f6e3df']
 const SALES_SOURCE = 'sales_unified'
 
 const S = {
-  card: { background: '#fff', borderRadius: 16, border: '1px solid #ecd9d3', boxShadow: '0 2px 8px rgba(92,26,43,0.07)', padding: 24 },
-  section: { background: '#fff', borderRadius: 16, border: '1px solid #ecd9d3', boxShadow: '0 2px 8px rgba(92,26,43,0.07)', overflow: 'hidden' },
-  th: { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: '#8f6b64', textTransform: 'uppercase' as const, letterSpacing: 0.5, background: '#fdf6f3', borderBottom: '1px solid #ecd9d3', whiteSpace: 'nowrap' as const },
-  td: { padding: '10px 12px', fontSize: 12, color: '#2b1013', borderBottom: '1px solid #f6e9e4' },
+  card: { background: COLORS.white, borderRadius: 16, border: '1px solid #ecd9d3', boxShadow: '0 2px 8px rgba(69,20,31,0.07)', padding: 24 },
+  section: { background: COLORS.white, borderRadius: 16, border: '1px solid #ecd9d3', boxShadow: '0 2px 8px rgba(69,20,31,0.07)', overflow: 'hidden' },
+  th: { padding: '10px 14px', fontSize: 11, fontWeight: 600, color: COLORS.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, background: COLORS.bg, borderBottom: '1px solid #ecd9d3', whiteSpace: 'nowrap' as const },
+  td: { padding: '10px 12px', fontSize: 12, color: COLORS.text, borderBottom: '1px solid #f6e9e4' },
 }
 
 const Tip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
-    <div style={{ background: '#fff', border: '1px solid #ecd9d3', borderRadius: 12, padding: '10px 14px', fontSize: 12 }}>
-      <p style={{ fontWeight: 700, color: '#5c1a2b', marginBottom: 4 }}>{label}</p>
+    <div style={{ background: COLORS.white, border: '1px solid #ecd9d3', borderRadius: 12, padding: '10px 14px', fontSize: 12 }}>
+      <p style={{ fontWeight: 700, color: COLORS.ink, marginBottom: 4 }}>{label}</p>
       {payload.map((p: any) => (
         <div key={p.name} style={{ display: 'flex', gap: 8 }}>
           <span style={{ color: p.color }}>■</span>
-          <span style={{ color: '#8f6b64' }}>{p.name}:</span>
+          <span style={{ color: COLORS.textMuted }}>{p.name}:</span>
           <span style={{ fontWeight: 600 }}>{p.name === 'Qty' ? fmt_num(p.value) : fmt_inr(p.value)}</span>
         </div>
       ))}
@@ -125,7 +126,7 @@ export default function OverviewPage() {
   useEffect(() => { load() }, [load])
 
   return (
-    <div style={{ minHeight: '100%', background: '#fdf6f3' }}>
+    <div style={{ minHeight: '100%', background: COLORS.bg }}>
       <PageHeader title="Overview" subtitle="Dashboard" />
       <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -144,26 +145,26 @@ export default function OverviewPage() {
         {/* Charts row */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
           <div style={S.card}>
-            <h2 className="font-display" style={{ color: '#5c1a2b', fontSize: 16, margin: '0 0 16px' }}>Revenue Trend — Last 8 Months</h2>
-            {loading?<div style={{ height:220,background:'#fdf6f3',borderRadius:12 }}/>:(
+            <h2 className="font-display" style={{ color: COLORS.ink, fontSize: 16, margin: '0 0 16px' }}>Revenue Trend — Last 8 Months</h2>
+            {loading?<div style={{ height:220,background:COLORS.bg,borderRadius:12 }}/>:(
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={trendData} margin={{ top:4,right:8,left:0,bottom:0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ecd9d3" />
-                  <XAxis dataKey="label" tick={{ fontSize:10,fill:'#8f6b64' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize:10,fill:'#8f6b64' }} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}k`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke=COLORS.border />
+                  <XAxis dataKey="label" tick={{ fontSize:10,fill:COLORS.textMuted }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize:10,fill:COLORS.textMuted }} axisLine={false} tickLine={false} tickFormatter={v=>`₹${(v/1000).toFixed(0)}k`} />
                   <Tooltip content={<Tip />} />
-                  <Bar dataKey="revenue" name="Revenue" fill="#b76e79" radius={[4,4,0,0]} />
-                  <Bar dataKey="profit" name="Profit" fill="#d9a3ab" radius={[4,4,0,0]} />
+                  <Bar dataKey="revenue" name="Revenue" fill=COLORS.accent radius={[4,4,0,0]} />
+                  <Bar dataKey="profit" name="Profit" fill=COLORS.accentLight radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
 
           <div style={S.card}>
-            <h2 className="font-display" style={{ color: '#5c1a2b', fontSize: 16, margin: '0 0 16px' }}>Revenue by Category</h2>
-            <p style={{ fontSize: 11, color: '#8f6b64', margin: '-12px 0 12px' }}>{dateRange.label}</p>
-            {loading?<div style={{ height:220,background:'#fdf6f3',borderRadius:12 }}/>:catData.length===0?(
-              <div style={{ height:220, display:'flex', alignItems:'center', justifyContent:'center', color:'#8f6b64', fontSize:13 }}>No sales this period</div>
+            <h2 className="font-display" style={{ color: COLORS.ink, fontSize: 16, margin: '0 0 16px' }}>Revenue by Category</h2>
+            <p style={{ fontSize: 11, color: COLORS.textMuted, margin: '-12px 0 12px' }}>{dateRange.label}</p>
+            {loading?<div style={{ height:220,background:COLORS.bg,borderRadius:12 }}/>:catData.length===0?(
+              <div style={{ height:220, display:'flex', alignItems:'center', justifyContent:'center', color:COLORS.textMuted, fontSize:13 }}>No sales this period</div>
             ):(
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
@@ -183,8 +184,8 @@ export default function OverviewPage() {
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #ecd9d3', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18 }}>⚠️</span>
               <div>
-                <h3 className="font-display" style={{ color: '#5c1a2b', fontSize: 15, margin: 0 }}>Low Stock Alert</h3>
-                <p style={{ fontSize: 11, color: '#8f6b64', marginTop: 2 }}>Items with 3 or fewer units remaining · live, not period-scoped</p>
+                <h3 className="font-display" style={{ color: COLORS.ink, fontSize: 15, margin: 0 }}>Low Stock Alert</h3>
+                <p style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>Items with 3 or fewer units remaining · live, not period-scoped</p>
               </div>
             </div>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
@@ -196,9 +197,9 @@ export default function OverviewPage() {
               </tr></thead>
               <tbody>
                 {sortedLowStock.map((item,i)=>(
-                  <tr key={item.item_code} style={{ background:i%2===0?'#fff':'#fbeee9' }}>
+                  <tr key={item.item_code} style={{ background:i%2===0?COLORS.white:COLORS.faint }}>
                     <td style={{ ...S.td, fontWeight:600 }}>{item.product_name?.slice(0,30)}</td>
-                    <td style={{ ...S.td, color:'#8f6b64' }}>{item.category}</td>
+                    <td style={{ ...S.td, color:COLORS.textMuted }}>{item.category}</td>
                     <td style={{ ...S.td, textAlign:'right' }}>
                       <span style={{ padding:'2px 8px', borderRadius:20, fontWeight:700, fontSize:11,
                         background:item.qty<=1?'#fee2e2':'#fef3c7', color:item.qty<=1?'#991b1b':'#92400e' }}>{item.qty}</span>
@@ -207,7 +208,7 @@ export default function OverviewPage() {
                   </tr>
                 ))}
                 {!loading&&lowStock.length===0&&(
-                  <tr><td colSpan={4} style={{ ...S.td, textAlign:'center', color:'#8f6b64', padding:24 }}>✅ All items well stocked</td></tr>
+                  <tr><td colSpan={4} style={{ ...S.td, textAlign:'center', color:COLORS.textMuted, padding:24 }}>✅ All items well stocked</td></tr>
                 )}
               </tbody>
             </table>
@@ -217,8 +218,8 @@ export default function OverviewPage() {
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #ecd9d3', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18 }}>👑</span>
               <div>
-                <h3 className="font-display" style={{ color: '#5c1a2b', fontSize: 15, margin: 0 }}>Top Customers</h3>
-                <p style={{ fontSize: 11, color: '#8f6b64', marginTop: 2 }}>By spend · {dateRange.label}</p>
+                <h3 className="font-display" style={{ color: COLORS.ink, fontSize: 15, margin: 0 }}>Top Customers</h3>
+                <p style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>By spend · {dateRange.label}</p>
               </div>
             </div>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
@@ -229,20 +230,20 @@ export default function OverviewPage() {
               </tr></thead>
               <tbody>
                 {sortedTopCustomers.map((c,i)=>(
-                  <tr key={c.mobile_no||c.customer_name+i} style={{ background:i%2===0?'#fff':'#fbeee9' }}>
+                  <tr key={c.mobile_no||c.customer_name+i} style={{ background:i%2===0?COLORS.white:COLORS.faint }}>
                     <td style={{ ...S.td, fontWeight:600 }}>
                       <Link href={`/customers?name=${encodeURIComponent(c.customer_name||'')}&mobile=${encodeURIComponent(c.mobile_no||'')}`}
-                        style={{ color:'#5c1a2b', textDecoration:'underline', textDecorationColor:'#d9a3ab', textUnderlineOffset:2 }}>{c.customer_name}</Link>
-                      <div style={{ fontSize:10, color:'#8f6b64', fontFamily:'monospace' }}>{c.mobile_no}</div>
+                        style={{ color:COLORS.ink, textDecoration:'underline', textDecorationColor:COLORS.accentLight, textUnderlineOffset:2 }}>{c.customer_name}</Link>
+                      <div style={{ fontSize:10, color:COLORS.textMuted, fontFamily:'monospace' }}>{c.mobile_no}</div>
                     </td>
                     <td style={{ ...S.td, textAlign:'center' }}>
-                      <span style={{ padding:'2px 8px', borderRadius:20, fontWeight:700, fontSize:11, background:'#f6e3df', color:'#5c1a2b' }}>{c.visit_count}×</span>
+                      <span style={{ padding:'2px 8px', borderRadius:20, fontWeight:700, fontSize:11, background:'#f6e3df', color:COLORS.ink }}>{c.visit_count}×</span>
                     </td>
-                    <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:'#5c1a2b' }}>{fmt_inr(c.total_spend)}</td>
+                    <td style={{ ...S.td, textAlign:'right', fontWeight:700, color:COLORS.ink }}>{fmt_inr(c.total_spend)}</td>
                   </tr>
                 ))}
                 {!loading&&topCustomers.length===0&&(
-                  <tr><td colSpan={3} style={{ ...S.td, textAlign:'center', color:'#8f6b64', padding:24 }}>No customers this period</td></tr>
+                  <tr><td colSpan={3} style={{ ...S.td, textAlign:'center', color:COLORS.textMuted, padding:24 }}>No customers this period</td></tr>
                 )}
               </tbody>
             </table>
