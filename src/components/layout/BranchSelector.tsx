@@ -5,7 +5,7 @@ export default function BranchSelector() {
   const { branches, selectedBranch, setSelectedBranch } = useBranch()
   return (
     <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-      <label style={{ color: '#a78bfa', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Branch</label>
+      <label style={{ color: '#c98d95', fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Branch</label>
       <select
         value={selectedBranch ?? 'all'}
         onChange={e => setSelectedBranch(e.target.value === 'all' ? null : e.target.value)}
