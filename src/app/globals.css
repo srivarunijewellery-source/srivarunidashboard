@@ -5,8 +5,8 @@
    primary color; dusty rose is the accent; blush ivory is the page bg. */
 @theme {
   /* Garnet palette (was "Purple palette") */
-  --color-sv-purple:        #5c1a2b;  /* garnet ink — primary */
-  --color-sv-purple-mid:    #833044;  /* garnet mid — hover states */
+  --color-sv-purple:        #45141f;  /* garnet ink — primary */
+  --color-sv-purple-mid:    #5c1a2b;  /* garnet mid — hover states */
   --color-sv-purple-light:  #b76e79;  /* dusty rose — accent */
   --color-sv-purple-pale:   #f0d8db;  /* rose pale — active/highlight bg */
   --color-sv-purple-faint:  #fbeee9;  /* rose faint — zebra row bg */
@@ -21,9 +21,9 @@
   --color-sv-muted:         #8f6b64;  /* warm muted rose-brown, secondary text */
 
   /* Shadows — garnet-tinted instead of purple-tinted */
-  --shadow-card:            0 2px 8px rgba(92,26,43,0.08);
-  --shadow-card-hover:      0 8px 32px rgba(92,26,43,0.16);
-  --shadow-gem:             0 0 0 1px rgba(183,110,121,0.12), 0 4px 16px rgba(92,26,43,0.12);
+  --shadow-card:            0 2px 8px rgba(69,20,31,0.08);
+  --shadow-card-hover:      0 8px 32px rgba(69,20,31,0.16);
+  --shadow-gem:             0 0 0 1px rgba(183,110,121,0.12), 0 4px 16px rgba(69,20,31,0.12);
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────────── */
@@ -50,7 +50,7 @@ body {
 .product-card { transition: box-shadow 0.3s ease; }
 .product-card:hover .product-img-wrap img { transform: scale(1.1); }
 .product-card:hover {
-  box-shadow: 0 16px 48px rgba(92,26,43,0.2);
+  box-shadow: 0 16px 48px rgba(69,20,31,0.2);
 }
 /* NOTE: deliberately no `transform` on .product-card:hover — a transform on
    an ancestor creates a new containing block for any descendant using
@@ -61,9 +61,9 @@ body {
 .font-display { font-family: 'Playfair Display', Georgia, serif; }
 
 /* ── Utility shadows ─────────────────────────────────────────────────────── */
-.shadow-card     { box-shadow: 0 2px 8px rgba(92,26,43,0.08); }
-.shadow-card-hover { box-shadow: 0 8px 32px rgba(92,26,43,0.16); }
-.shadow-gem      { box-shadow: 0 0 0 1px rgba(183,110,121,0.12), 0 4px 16px rgba(92,26,43,0.12); }
+.shadow-card     { box-shadow: 0 2px 8px rgba(69,20,31,0.08); }
+.shadow-card-hover { box-shadow: 0 8px 32px rgba(69,20,31,0.16); }
+.shadow-gem      { box-shadow: 0 0 0 1px rgba(183,110,121,0.12), 0 4px 16px rgba(69,20,31,0.12); }
 
 
 /* Inventory table row hover — subtle highlight for scannability */
