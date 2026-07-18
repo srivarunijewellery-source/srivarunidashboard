@@ -7,6 +7,14 @@ import { useSortable } from '@/lib/useSortable'
 import SortIndicator from './SortIndicator'
 import { X } from 'lucide-react'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync.
+// NOTE: customer_name/mobile_no are NULL for API-sourced rows, so recent
+// walk-ins from that window bucket under "Walk-in" here rather than being
+// individually attributed -- inherent limit of the Sales Reporting API, not
+// a bug.
+const SALES_SOURCE = 'sales_unified'
+
 export default function CustomersListModal({ from, to, label, branchId, onClose }: {
   from: string; to: string; label: string; branchId?: string | null; onClose: () => void
 }) {
@@ -17,7 +25,7 @@ export default function CustomersListModal({ from, to, label, branchId, onClose 
   useEffect(() => {
     let active = true
     setLoading(true)
-    fetchAllRows('sales', 'voucher_no,customer_name,mobile_no,net_amount', q => {
+    fetchAllRows(SALES_SOURCE, 'voucher_no,customer_name,mobile_no,net_amount', q => {
       let qq = q.gte('date', from).lte('date', to)
       if (branchId) qq = qq.eq('branch_id', branchId)
       return qq
