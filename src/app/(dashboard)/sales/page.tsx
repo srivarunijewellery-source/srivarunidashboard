@@ -29,6 +29,14 @@ const PAGE_SIZE = 25
 const DRILL_PAGE_SIZE = 30
 const N: Record<Grain, number> = { day: 14, week: 8, month: 8, quarter: 6, year: 5 }
 
+// Sales data source: `sales_unified` = FTP-sourced `sales` (rich: profit, customer,
+// landing cost) for every date it covers, backfilled with API-sourced `sales_api`
+// (via VasyERP's Sales Reporting API) for any date after the FTP watcher's last
+// successful sync. API-sourced rows have NULL profit/landing_cost/customer fields —
+// that data isn't available from this API. This is "Transition 1"; revisit once
+// VasyERP shares fuller API documentation.
+const SALES_SOURCE = 'sales_unified'
+
 const Tip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
@@ -91,7 +99,7 @@ export default function SalesPage() {
     setLoading(true)
     try {
       const periods = grain === 'month' ? getAllMonths() : getPeriods(grain, N[grain])
-      const data = await fetchAllRows('sales', 'date,net_amount,profit,qty', q => {
+      const data = await fetchAllRows(SALES_SOURCE, 'date,net_amount,profit,qty', q => {
         let qq = q.gte('date', DATA_START).lte('date', new Date().toISOString().split('T')[0])
         if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
         return qq
@@ -142,7 +150,7 @@ export default function SalesPage() {
   const loadDetails = useCallback(async () => {
     setDLoading(true); setPage(0)
     try {
-      const sales = await fetchAllRows('sales', 'item_code,product_name,category,brand,selling_price,landing_cost,mrp,qty,net_amount,profit,voucher_no,mobile_no,customer_name', q => {
+      const sales = await fetchAllRows(SALES_SOURCE, 'item_code,product_name,category,brand,selling_price,landing_cost,mrp,qty,net_amount,profit,voucher_no,mobile_no,customer_name', q => {
         let qq = q.gte('date', dateRange.from).lte('date', dateRange.to)
         if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
         return qq
