@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* ── Sri Varuni Design Tokens — Rosewater & Garnet ──────────────────────────
+   Replaces the earlier purple/beige palette. Garnet (deep wine) is the ink/
+   primary color; dusty rose is the accent; blush ivory is the page bg. */
+@theme {
+  /* Garnet palette (was "Purple palette") */
+  --color-sv-purple:        #45141f;  /* garnet ink — primary */
+  --color-sv-purple-mid:    #5c1a2b;  /* garnet mid — hover states */
+  --color-sv-purple-light:  #b76e79;  /* dusty rose — accent */
+  --color-sv-purple-pale:   #f0d8db;  /* rose pale — active/highlight bg */
+  --color-sv-purple-faint:  #fbeee9;  /* rose faint — zebra row bg */
+
+  /* Rosewater palette (was "Beige palette") */
+  --color-sv-beige:         #fdf6f3;  /* blush ivory — page bg */
+  --color-sv-beige-dark:    #ecd9d3;  /* rose border */
+  --color-sv-beige-mid:     #f6e9e4;  /* rose-beige mid — selector bg */
+
+  /* Text */
+  --color-sv-ink:           #2b1013;  /* warm near-black body text */
+  --color-sv-muted:         #8f6b64;  /* warm muted rose-brown, secondary text */
+
+  /* Shadows — garnet-tinted instead of purple-tinted */
+  --shadow-card:            0 2px 8px rgba(69,20,31,0.08);
+  --shadow-card-hover:      0 8px 32px rgba(69,20,31,0.16);
+  --shadow-gem:             0 0 0 1px rgba(183,110,121,0.12), 0 4px 16px rgba(69,20,31,0.12);
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #fdf6f3;
+  color: #2b1013;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #fdf6f3; }
+::-webkit-scrollbar-thumb { background: #d9a3ab; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #b76e79; }
+
+/* ── Product card hover zoom ─────────────────────────────────────────────── */
+.product-img-wrap { overflow: hidden; }
+.product-img-wrap img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.product-card { transition: box-shadow 0.3s ease; }
+.product-card:hover .product-img-wrap img { transform: scale(1.1); }
+.product-card:hover {
+  box-shadow: 0 16px 48px rgba(69,20,31,0.2);
+}
+/* NOTE: deliberately no `transform` on .product-card:hover — a transform on
+   an ancestor creates a new containing block for any descendant using
+   `position: fixed` (like HoverImage's floating enlarged preview), which
+   broke the hover-enlarge specifically on cards using this class. */
+
+/* ── Typography helpers ──────────────────────────────────────────────────── */
+.font-display { font-family: 'Playfair Display', Georgia, serif; }
+
+/* ── Utility shadows ─────────────────────────────────────────────────────── */
+.shadow-card     { box-shadow: 0 2px 8px rgba(69,20,31,0.08); }
+.shadow-card-hover { box-shadow: 0 8px 32px rgba(69,20,31,0.16); }
+.shadow-gem      { box-shadow: 0 0 0 1px rgba(183,110,121,0.12), 0 4px 16px rgba(69,20,31,0.12); }
+
+
+/* Inventory table row hover — subtle highlight for scannability */
+.inv-row { transition: background-color 0.12s ease; }
+.inv-row:hover { background-color: #f0d8db !important; }
