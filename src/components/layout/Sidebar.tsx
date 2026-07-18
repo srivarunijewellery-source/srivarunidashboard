@@ -26,10 +26,10 @@ export default function Sidebar() {
   }
 
   return (
-    <aside style={{ width:220, flexShrink:0, backgroundColor:'#3b0764', display:'flex', flexDirection:'column', height:'100%' }}>
+    <aside style={{ width:220, flexShrink:0, backgroundColor:'#5c1a2b', display:'flex', flexDirection:'column', height:'100%' }}>
       <div style={{ padding:'24px 20px 20px', borderBottom:'1px solid rgba(255,255,255,0.1)' }}>
         <p className="font-display" style={{ color:'#fff', fontSize:18, lineHeight:1.2, margin:0 }}>Sri Varuni</p>
-        <p style={{ color:'#c4b5fd', fontSize:10, marginTop:2, letterSpacing:2, textTransform:'uppercase' }}>Fashion Jewellery</p>
+        <p style={{ color:'#d9a3ab', fontSize:10, marginTop:2, letterSpacing:2, textTransform:'uppercase' }}>Fashion Jewellery</p>
       </div>
       <BranchSelector />
       <nav style={{ flex:1, padding:'12px 10px', display:'flex', flexDirection:'column', gap:2 }}>
@@ -39,8 +39,8 @@ export default function Sidebar() {
             <Link key={href} href={href} style={{
               display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:10,
               fontSize:13, fontWeight:500, textDecoration:'none',
-              backgroundColor: active ? '#7c3aed' : 'transparent',
-              color: active ? '#fff' : '#c4b5fd', transition:'all 0.15s',
+              backgroundColor: active ? '#b76e79' : 'transparent',
+              color: active ? '#fff' : '#d9a3ab', transition:'all 0.15s',
             }}>
               <Icon size={15} />
               {label}
@@ -51,14 +51,14 @@ export default function Sidebar() {
       <button onClick={handleLogout} style={{
         display:'flex', alignItems:'center', gap:10, margin:'0 10px 8px', padding:'10px 12px', borderRadius:10,
         fontSize:13, fontWeight:500, background:'transparent', border:'none', cursor:'pointer',
-        color:'#c4b5fd', textAlign:'left',
+        color:'#d9a3ab', textAlign:'left',
       }}>
         <LogOut size={15} />
         Log out
       </button>
       <div style={{ padding:'16px 20px', borderTop:'1px solid rgba(255,255,255,0.1)' }}>
-        <p style={{ color:'#a78bfa', fontSize:11 }}>Internal Dashboard</p>
-        <p style={{ color:'#7c3aed', fontSize:10, marginTop:2 }}>v2.0 · Supabase</p>
+        <p style={{ color:'#c98d95', fontSize:11 }}>Internal Dashboard</p>
+        <p style={{ color:'#b76e79', fontSize:10, marginTop:2 }}>v2.0 · Supabase</p>
       </div>
     </aside>
   )
