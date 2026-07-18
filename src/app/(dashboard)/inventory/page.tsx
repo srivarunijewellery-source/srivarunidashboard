@@ -14,6 +14,10 @@ import { ExternalLink, Tags, Sparkles, LayoutGrid, ChevronDown, X, Truck, Clock 
 import { useSortable } from '@/lib/useSortable'
 import SortIndicator from '@/components/ui/SortIndicator'
 
+// sales_unified = FTP-sourced sales for every date it covers, backfilled with
+// API-sourced sales_api for anything after FTP's last successful sync.
+const SALES_SOURCE = 'sales_unified'
+
 const NUM: React.CSSProperties = { fontVariantNumeric: 'tabular-nums', textAlign: 'right' }
 
 const S = {
@@ -307,7 +311,7 @@ export default function InventoryPage() {
   const loadCutSold = useCallback(async () => {
     setCutLoading(true)
     try {
-      const sales = await fetchAllRows('sales', 'item_code,category,brand,qty,net_amount', q => {
+      const sales = await fetchAllRows(SALES_SOURCE, 'item_code,category,brand,qty,net_amount', q => {
         let qq = q.gte('date', cutRange.from).lte('date', cutRange.to)
         if (selectedBranch) qq = qq.eq('branch_id', selectedBranch)
         return qq
@@ -336,7 +340,7 @@ export default function InventoryPage() {
     try {
       const [inward, sales] = await Promise.all([
         fetchAllRows('material_inward', 'item_code,inward_date', q => q),
-        fetchAllRows('sales', 'item_code,qty,net_amount', q => q), // lifetime, no date filter -- "till date"
+        fetchAllRows(SALES_SOURCE, 'item_code,qty,net_amount', q => q), // lifetime, no date filter -- "till date"
       ])
       const inMap: Record<string,string> = {}
       for (const r of inward) {
