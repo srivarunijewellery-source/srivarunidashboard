@@ -129,7 +129,7 @@ function ProductDrillTable({ items, title, subtitle, onClose }: { items: any[]; 
         <div style={{ padding:32, textAlign:'center', color:'#6b5b7b', fontSize:13 }}>No products match this selection.</div>
       ) : (
       <>
-        <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
+        <div className="responsive-grid" style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
           {pageItems.map((item:any)=><StockCard key={item.item_code} {...item}/>)}
         </div>
         {totalPages>1&&(
@@ -180,7 +180,7 @@ function CategoryBrandPivot({ items, onCellClick }: { items: any[]; onCellClick:
           Brands: {colSortDir==='desc'?'High → Low':'Low → High'}<SortIndicator active dir={colSortDir}/>
         </button>
       </div>
-      <div style={{ overflow:'auto', maxHeight:400 }}>
+      <div className="table-scroll" style={{ overflow:'auto', maxHeight:400 }}>
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
           <thead>
             <tr>
@@ -417,7 +417,7 @@ export default function InventoryPage() {
           </div>
         }
       />
-      <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:22 }}>
+      <div className="page-content" style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:22 }}>
 
         {tab==='snapshot' && (
         <>
@@ -444,11 +444,11 @@ export default function InventoryPage() {
             </div>
 
             {(cutLoading||invLoading) ? (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+              <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
                 {Array.from({length:4}).map((_,i)=><div key={i} style={{ height:80, background:'#f5f0e8', borderRadius:14 }}/>)}
               </div>
             ) : (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+              <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
                 <MetricCard label="Sold" value={fmt_num(cutSold.qty)} sub={cutRange.label} accent="purple"/>
                 <MetricCard label="Revenue" value={fmt_inr(cutSold.revenue)} sub={cutRange.label} accent="green"/>
                 <MetricCard label="In Stock Now" value={fmt_num(cutStock.qty)} accent="beige"/>
@@ -487,7 +487,7 @@ export default function InventoryPage() {
           <div style={{ height:240, background:'#fff', borderRadius:16, border:'1px solid #e8d5b7' }}/>
         ) : (
           <div style={S.section}>
-            <div style={{ overflow:'auto' }}>
+            <div className="table-scroll" style={{ overflow:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead><tr>
                   <th style={S.th}>Age Bucket</th>

@@ -89,7 +89,7 @@ export default function ProductModal({ itemCode, hint, onClose }: { itemCode: st
             <p style={{ fontSize: 12, color: '#6b5b7b', margin: '0 0 4px' }}>{brand}</p>
             <p style={{ fontSize: 11, color: '#6b5b7b', fontFamily:'monospace', margin: '0 0 12px' }}>Barcode: {itemCode}</p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="responsive-grid-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>MRP{mrpIsEstimated?' (est.)':''}</p><p style={{ fontSize: 14, fontWeight: 700, color: mrpIsEstimated?'#d97706':'#1a0a2e', margin: '2px 0 0' }}>{displayMrp > 0 ? fmt_inr(displayMrp) : '—'}</p></div>
               <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>Cost/Unit</p><p style={{ fontSize: 14, fontWeight: 700, color: '#1a0a2e', margin: '2px 0 0' }}>{cost > 0 ? fmt_inr(cost) : '—'}</p></div>
               <div style={{ background: '#f5f0e8', borderRadius: 10, padding: '8px 12px' }}><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0 }}>In Stock</p><p style={{ fontSize: 14, fontWeight: 700, color: qty <= 3 ? '#dc2626' : '#059669', margin: '2px 0 0' }}>{qty}</p></div>

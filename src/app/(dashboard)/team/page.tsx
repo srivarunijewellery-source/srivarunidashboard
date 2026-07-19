@@ -100,7 +100,7 @@ export default function TeamPage() {
   return (
     <div style={{ minHeight:'100%', background:'#f5f0e8' }}>
       <PageHeader title="Sales Team" subtitle="Performance and commission breakdown" />
-      <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:20 }}>
+      <div className="page-content" style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:20 }}>
 
         <DateNav grain={grain} onGrainChange={setGrain} offset={offset} onOffsetChange={setOffset} label={dateRange.label} />
 
@@ -110,7 +110,7 @@ export default function TeamPage() {
           </div>
         )}
 
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16 }}>
+        <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16 }}>
           <MetricCard label="Team Revenue" value={fmt_inr(totalSales)} sub={dateRange.label} accent="purple"/>
           <MetricCard label="Total Commission" value={fmt_inr(totalComm)} sub="Monthly 0.5% + 0.25% bonus" accent="green"/>
           <MetricCard label="Team Members" value={`${rows.length}`} accent="beige"/>
@@ -147,7 +147,7 @@ export default function TeamPage() {
             <p style={{ fontSize:11, color:'#6b5b7b', marginTop:4 }}>0.5% monthly rate + 0.25% bonus rate applied to this period's total · attributed sales only</p>
           </div>
           {loading?<div style={{ height:200, background:'#f5f0e8', margin:16, borderRadius:12 }}/>:(
-            <div style={{ overflowX:'auto' }}>
+            <div className="table-scroll" style={{ overflowX:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead>
                   <tr style={{ background:'#3b0764' }}>

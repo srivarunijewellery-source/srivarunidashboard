@@ -69,7 +69,7 @@ export default function CustomersListModal({ from, to, label, branchId, onClose 
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={20} /></button>
         </div>
-        <div style={{ overflow: 'auto' }}>
+        <div className="table-scroll" style={{ overflow: 'auto' }}>
           {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#6b5b7b' }}>Loading…</div> : customers.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: '#6b5b7b' }}>No customers in this period.</div>
           ) : (

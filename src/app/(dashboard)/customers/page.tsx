@@ -228,11 +228,11 @@ function CustomersInner() {
   return (
     <div style={{ minHeight:'100%', background:'#f5f0e8' }}>
       <PageHeader title="Customers" subtitle="Insights and individual deep dives" />
-      <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:20 }}>
+      <div className="page-content" style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:20 }}>
 
         {/* ═══════════ INSIGHTS ═══════════ */}
         <DateNav grain={iGrain} onGrainChange={setIGrain} offset={iOffset} onOffsetChange={setIOffset} label={iRange.label} />
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:14 }}>
+        <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:14 }}>
           <MetricCard label="Total Customers" value={fmt_num(insightMetrics.total)} sub="With phone" accent="purple"/>
           <MetricCard label="Single Visit" value={fmt_num(insightMetrics.single)} sub={`${(100-insightMetrics.repeat_pct).toFixed(1)}% of total`} accent="beige"/>
           <MetricCard label="Repeat Customers" value={fmt_num(insightMetrics.returning)} sub={`${insightMetrics.repeat_pct.toFixed(1)}% retention`} accent="green"/>
@@ -241,7 +241,7 @@ function CustomersInner() {
           <MetricCard label="Returning Rate" value={`${insightMetrics.repeat_pct.toFixed(1)}%`} sub="2+ visits" accent="green"/>
         </div>
 
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+        <div className="responsive-grid-stack" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
           <div style={{ ...S.section, padding:24 }}>
             <h2 className="font-display" style={{ color:'#3b0764', fontSize:16, margin:'0 0 16px' }}>Visit Frequency Distribution</h2>
             <p style={{ fontSize:11, color:'#6b5b7b', margin:'-12px 0 12px' }}>Click a bar to filter the table beside it</p>
@@ -274,7 +274,7 @@ function CustomersInner() {
               </div>
               {selectedBucket&&<button onClick={()=>setSelectedBucket(null)} style={{ padding:'4px 10px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:11, cursor:'pointer', color:'#6b5b7b' }}>Clear ×</button>}
             </div>
-            <div style={{ maxHeight:340, overflowY:'auto' }}>
+            <div className="table-scroll" style={{ maxHeight:340, overflowY:'auto' }}>
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                 <thead><tr>
                   <th style={{...S.th, position:'sticky', top:0}}>Rank</th>
@@ -318,7 +318,7 @@ function CustomersInner() {
             <h2 className="font-display" style={{ color:'#3b0764', fontSize:16, margin:0 }}>Top Customers by Lifetime Spend</h2>
             <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{iRange.label} · customers with registered phone numbers · click a name to open their deep dive below</p>
           </div>
-          <div style={{ overflowX:'auto' }}>
+          <div className="table-scroll" style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
               <thead><tr>
                 <th style={S.th}>Rank</th>
@@ -418,7 +418,7 @@ function CustomersInner() {
                 </div>
               </div>
 
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12 }}>
+              <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12 }}>
                 <MetricCard label="Visits" value={`${bills.length}`} accent="purple"/>
                 <MetricCard label="Units" value={fmt_num(lines.reduce((s,l)=>s+(l.qty||0),0))} accent="beige"/>
                 <MetricCard label="Avg Bill" value={fmt_inr(bills.length?totalSpend/bills.length:0)} accent="beige"/>
@@ -433,7 +433,7 @@ function CustomersInner() {
                     <h3 className="font-display" style={{ color:'#3b0764', fontSize:15, margin:0 }}>Invoice History</h3>
                     <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{bills.length} bills · {fmt_inr(totalSpend)} · click a bill no. for full order details</p>
                   </div>
-                  <div style={{ overflowX:'auto' }}>
+                  <div className="table-scroll" style={{ overflowX:'auto' }}>
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                       <thead><tr>
                         <th style={S.th}>Visit</th>
@@ -491,7 +491,7 @@ function CustomersInner() {
                     <h3 className="font-display" style={{ color:'#3b0764', fontSize:15, margin:0 }}>Item Detail</h3>
                     <p style={{ fontSize:11, color:'#6b5b7b', marginTop:2 }}>{lines.length} line items · click a bill no. for full order details</p>
                   </div>
-                  <div style={{ overflowX:'auto' }}>
+                  <div className="table-scroll" style={{ overflowX:'auto' }}>
                     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                       <thead><tr>
                         <th onClick={()=>toggleLinesSort('date')} style={{...S.th, cursor:'pointer'}}>Date<SortIndicator active={linesSortKey==='date'} dir={linesSortDir}/></th>

@@ -59,13 +59,13 @@ export default function OrderModal({ voucherNo, onClose }: { voucherNo: string; 
           <div style={{ padding: 48, textAlign: 'center', color: '#6b5b7b' }}>No line items found for this order.</div>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, padding: '16px 24px', background: '#f5f0e8', flexShrink: 0 }}>
+            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, padding: '16px 24px', background: '#f5f0e8', flexShrink: 0 }}>
               <div><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Line Items</p><p style={{ fontSize: 17, fontWeight: 700, color: '#3b0764', margin: '2px 0 0' }}>{lines.length}</p></div>
               <div><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Qty</p><p style={{ fontSize: 17, fontWeight: 700, color: '#3b0764', margin: '2px 0 0' }}>{totalQty}</p></div>
               <div><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Amount</p><p style={{ fontSize: 17, fontWeight: 700, color: '#3b0764', margin: '2px 0 0' }}>{fmt_inr(totalAmount)}</p></div>
               <div><p style={{ fontSize: 10, color: '#6b5b7b', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>Profit{totalDisc > 0 ? ` · Disc ${fmt_inr(totalDisc)}` : ''}</p><p style={{ fontSize: 17, fontWeight: 700, color: '#059669', margin: '2px 0 0' }}>{fmt_inr(totalProfit)}</p></div>
             </div>
-            <div style={{ overflow: 'auto', padding: '0 24px 24px' }}>
+            <div className="table-scroll" style={{ overflow: 'auto', padding: '0 24px 24px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 16 }}>
                 <thead>
                   <tr>

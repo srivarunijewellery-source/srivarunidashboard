@@ -128,12 +128,12 @@ export default function OverviewPage() {
   return (
     <div style={{ minHeight: '100%', background: COLORS.bg }}>
       <PageHeader title="Overview" subtitle="Dashboard" />
-      <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="page-content" style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         <DateNav grain={grain} onGrainChange={setGrain} offset={offset} onOffsetChange={setOffset} label={dateRange.label} />
 
         {/* KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 14 }}>
+        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 14 }}>
           <MetricCard label="Revenue" value={fmt_inr(metrics.revenue)} sub={dateRange.label} accent="purple" />
           <MetricCard label="Profit" value={fmt_inr(metrics.profit)} sub={`${metrics.margin.toFixed(1)}% margin`} accent="green" />
           <MetricCard label="Total Bills" value={fmt_num(metrics.bills)} accent="beige" />
@@ -143,7 +143,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Charts row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+        <div className="responsive-grid-stack" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
           <div style={S.card}>
             <h2 className="font-display" style={{ color: COLORS.ink, fontSize: 16, margin: '0 0 16px' }}>Revenue Trend — Last 8 Months</h2>
             {loading?<div style={{ height:220,background:COLORS.bg,borderRadius:12 }}/>:(
@@ -179,7 +179,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Bottom row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="responsive-grid-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <div style={S.section}>
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #ecd9d3', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18 }}>⚠️</span>

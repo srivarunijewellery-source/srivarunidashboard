@@ -91,9 +91,9 @@ export default function ExpensesPage() {
   return (
     <div style={{ minHeight: '100%', background: '#f5f0e8' }}>
       <PageHeader title="Expenses" subtitle="All time category breakdown and monthly trends" />
-      <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="page-content" style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
           <MetricCard label="All-time Expenses" value={fmt_inr(metrics.total)} accent="purple" />
           <MetricCard label="Monthly Avg" value={fmt_inr(metrics.avg)} sub="Active months" accent="beige" />
           <MetricCard label="Peak Month" value={metrics.highest} sub={fmt_inr(metrics.peak)} accent="amber" />
@@ -123,7 +123,7 @@ export default function ExpensesPage() {
             <p style={{ fontSize: 12, color: '#6b5b7b', marginTop: 4 }}>Top 15 vendors · all months · ▲ red = increase, ▼ green = decrease</p>
           </div>
           {loading ? <div style={{ height: 200, background: '#f5f0e8', margin: 16, borderRadius: 12 }} /> : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-scroll" style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#3b0764' }}>

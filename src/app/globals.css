@@ -69,3 +69,91 @@ body {
 /* Inventory table row hover — subtle highlight for scannability */
 .inv-row { transition: background-color 0.12s ease; }
 .inv-row:hover { background-color: #f0d8db !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVENESS
+   Breakpoint: 768px (tablet/phone). The whole app was built with fixed
+   inline pixel/repeat(N,1fr) layouts and zero responsive handling before
+   this pass — these rules + the shared MetricGrid/TableScroll components
+   (src/components/ui/MetricGrid.tsx, TableScroll.tsx) are what pages should
+   use going forward instead of hand-rolled inline grids on any page still
+   being converted.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Mobile nav (hamburger + slide-in drawer) ─────────────────────────── */
+.mobile-menu-btn { display: none; }
+.sidebar-overlay { display: none; }
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex; position: fixed; top: 14px; left: 14px; z-index: 210;
+    width: 42px; height: 42px; border-radius: 10px;
+    background: #45141f; color: #fff; border: none;
+    align-items: center; justify-content: center; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(69,20,31,0.3);
+  }
+  .app-sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; width: 260px;
+    max-width: 82vw;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 205;
+  }
+  .app-sidebar.open { transform: translateX(0); }
+
+  .sidebar-overlay.open {
+    display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 204;
+  }
+
+  .app-main { width: 100%; padding-top: 64px; }
+}
+
+/* ── Responsive metric-card / product-card grids ──────────────────────────
+   Used via <MetricGrid cols={N}> instead of a raw div with an inline
+   gridTemplateColumns. Collapses 2 steps down on tablet, to 1 column under
+   480px. Gap stays consistent at 12px on mobile regardless of desktop gap,
+   since dense multi-column gaps look oversized once stacked to 1-2 cols. */
+.responsive-grid { display: grid; gap: 16px; }
+@media (max-width: 768px) {
+  .responsive-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px; }
+}
+@media (max-width: 480px) {
+  .responsive-grid { grid-template-columns: 1fr !important; }
+}
+
+/* For 2-column side-by-side panels (e.g. chart + chart, chart + table) where
+   collapsing to 2 equal columns on mobile would leave both halves too
+   narrow to read — these go straight to 1 column (full width, stacked)
+   at the same 768px breakpoint instead of stepping down gradually. */
+.responsive-grid-stack { display: grid; gap: 16px; }
+@media (max-width: 768px) {
+  .responsive-grid-stack { grid-template-columns: 1fr !important; gap: 16px; }
+}
+
+/* ── Table horizontal scroll wrapper ────────────────────────────────────
+   Used via <TableScroll> instead of a raw div with overflow:'auto'. Adds
+   momentum scrolling on iOS and a visible scroll hint on mobile so it's
+   discoverable (a bare overflow:auto table gives no visual cue that it
+   scrolls until you accidentally swipe it). */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 768px) {
+  .table-scroll {
+    background:
+      linear-gradient(to right, white 30%, rgba(255,255,255,0)),
+      linear-gradient(to right, rgba(255,255,255,0), white 70%) 100% 0,
+      linear-gradient(to right, rgba(69,20,31,0.15), rgba(255,255,255,0)),
+      linear-gradient(to left, rgba(69,20,31,0.15), rgba(255,255,255,0)) 100% 0;
+    background-repeat: no-repeat;
+    background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+}
+
+/* ── Page padding: tighter on mobile so content isn't crushed by the
+   32px desktop gutters ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .page-content { padding-left: 16px !important; padding-right: 16px !important; }
+  .page-header { padding: 20px 16px 16px !important; flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
+  .page-header-actions { flex-wrap: wrap !important; }
+}

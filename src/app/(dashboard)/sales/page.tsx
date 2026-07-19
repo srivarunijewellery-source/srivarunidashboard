@@ -291,7 +291,7 @@ export default function SalesPage() {
           </div>
         }
       />
-      <div style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="page-content" style={{ padding: '0 32px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {view==='summary' && (
           <>
@@ -315,7 +315,7 @@ export default function SalesPage() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+            <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
               <MetricCard label="Total Revenue" value={fmt_inr(metrics.revenue)} accent="purple"
                 delta={delta !== 0 ? { value: `${Math.abs(delta).toFixed(1)}% vs prev`, positive: delta >= 0 } : undefined} />
               <MetricCard label="Total Profit" value={fmt_inr(metrics.profit)} sub={`${margin.toFixed(1)}% margin`} accent="green" />
@@ -355,7 +355,7 @@ export default function SalesPage() {
 
         {view==='details' && (
           <>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:14 }}>
+            <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:14 }}>
               <MetricCard label="Revenue" value={fmt_inr(dMetrics.revenue)} sub={dateRange.label} accent="purple" onClick={()=>setShowBills(true)}/>
               <MetricCard label="Profit" value={fmt_inr(dMetrics.profit)} sub={`${dMargin.toFixed(1)}% margin`} accent="green"/>
               <MetricCard label="Units Sold" value={fmt_num(dMetrics.qty)} accent="beige" onClick={()=>setShowBills(true)}/>
@@ -365,7 +365,7 @@ export default function SalesPage() {
             </div>
 
             {dLoading ? (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
+              <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
                 {Array.from({length:10}).map((_,i)=><div key={i} style={{ borderRadius:16, background:COLORS.white, aspectRatio:'3/4', border:'1px solid #ecd9d3' }}/>)}
               </div>
             ) : filteredSoldItems.length===0 ? (
@@ -375,7 +375,7 @@ export default function SalesPage() {
               </div>
             ) : (
               <>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
+                <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
                   {pageItems.map(item=><ProductCard key={item.item_code} {...item}/>)}
                 </div>
                 {totalPages>1&&(
@@ -392,7 +392,7 @@ export default function SalesPage() {
 
         {view==='category' && (
           <>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+            <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
               <MetricCard label="Units Sold" value={fmt_num(catGrandTotal.qty)} sub={dateRange.label} accent="purple"/>
               <MetricCard label="Revenue" value={fmt_inr(catGrandTotal.revenue)} sub={dateRange.label} accent="green"/>
               <MetricCard label="Categories" value={`${catPivotRows.length}`} accent="beige"/>
@@ -406,7 +406,7 @@ export default function SalesPage() {
                   Brands: {catColSortDir==='desc'?'High → Low':'Low → High'}<SortIndicator active dir={catColSortDir}/>
                 </button>
               </div>
-              <div style={{ overflow:'auto', maxHeight:460 }}>
+              <div className="table-scroll" style={{ overflow:'auto', maxHeight:460 }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead>
                     <tr>
@@ -485,7 +485,7 @@ export default function SalesPage() {
                     <button onClick={()=>setCatDrillKey(null)} style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #ecd9d3', background:COLORS.white, fontSize:12, cursor:'pointer', color:COLORS.textMuted }}>Close ×</button>
                   </div>
                 </div>
-                <div style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
+                <div className="responsive-grid" style={{ padding:16, display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:16 }}>
                   {catDrillPageItems.map((item:any)=><ProductCard key={item.item_code} {...item}/>)}
                 </div>
                 {catDrillTotalPages>1&&(

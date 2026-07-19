@@ -61,7 +61,7 @@ export default function BillsListModal({ from, to, label, branchId, onClose, onO
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={20} /></button>
         </div>
-        <div style={{ overflow: 'auto' }}>
+        <div className="table-scroll" style={{ overflow: 'auto' }}>
           {loading ? <div style={{ padding: 40, textAlign: 'center', color: '#6b5b7b' }}>Loading…</div> : bills.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: '#6b5b7b' }}>No bills in this period.</div>
           ) : (

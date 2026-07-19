@@ -181,16 +181,16 @@ export default function StockTransferPage() {
           </button>
         }
       />
-      <div style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:22 }}>
+      <div className="page-content" style={{ padding:'0 32px 32px', display:'flex', flexDirection:'column', gap:22 }}>
 
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+        <div className="responsive-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
           <MetricCard label="Pending Requests" value={fmt_num(summary.pendingCount)} accent="amber"/>
           <MetricCard label="Pending Units" value={fmt_num(summary.pendingQty)} accent="amber"/>
           <MetricCard label="Exported (awaiting execution)" value={fmt_num(summary.exportedCount)} accent="purple"/>
           <MetricCard label="Closed" value={fmt_num(summary.closedCount)} accent="green"/>
         </div>
 
-        <div style={{ display:'flex', gap:8 }}>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {STATUS_TABS.map(t=>(
             <button key={t} onClick={()=>{setTab(t);setPivotFilter(null)}} style={{
               padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:500, cursor:'pointer',
@@ -210,7 +210,7 @@ export default function StockTransferPage() {
                 <h3 className="font-display" style={{ fontSize:14, color:'#3b0764', margin:0, textTransform:'capitalize' }}>Category × Brand — {tab} requests</h3>
                 {pivotFilter && <button onClick={()=>setPivotFilter(null)} style={{ padding:'5px 12px', borderRadius:8, border:'1px solid #e8d5b7', background:'#fff', fontSize:11, cursor:'pointer', color:'#6b5b7b' }}>Clear filter ×</button>}
               </div>
-              <div style={{ overflow:'auto', maxHeight:300 }}>
+              <div className="table-scroll" style={{ overflow:'auto', maxHeight:300 }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead><tr>
                     <th style={{ ...S.th, background:'#3b0764', color:'#fff', position:'sticky', left:0, top:0, minWidth:140 }}>Category</th>
@@ -237,7 +237,7 @@ export default function StockTransferPage() {
             {filtered.length===0 ? (
               <div style={{ padding:32, textAlign:'center', color:'#6b5b7b', fontSize:13 }}>No {tab==='all'?'':tab} requests.</div>
             ) : (
-              <div style={{ overflow:'auto' }}>
+              <div className="table-scroll" style={{ overflow:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead><tr>
                     {['Item','Category','Brand','From → To','Requested','Available Now','Status','Created',''].map(h=>

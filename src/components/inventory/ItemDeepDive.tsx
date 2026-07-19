@@ -139,7 +139,7 @@ export default function ItemDeepDive() {
                 <ArrowLeftRight size={12}/> Transfer to another branch
               </button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignContent:'start' }}>
+            <div className="responsive-grid-stack" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, alignContent:'start' }}>
               <div style={{ background:'#f5f0e8', borderRadius:10, padding:'8px 14px', textAlign:'center' }}>
                 <p style={{ fontSize:10, color:'#6b5b7b', margin:0 }}>In Stock</p>
                 <p style={{ fontSize:18, fontWeight:700, color: selected.qty<=3?'#dc2626':'#059669', margin:'2px 0 0' }}>{selected.qty}</p>
@@ -157,7 +157,7 @@ export default function ItemDeepDive() {
               <h3 style={{ fontSize:14, fontWeight:700, color:'#059669', margin:0 }}>Material Inward ({inward.length})</h3>
             </div>
             {inward.length===0 ? <p style={{ padding:16, fontSize:12, color:'#6b5b7b', fontStyle:'italic', margin:0 }}>No inward records.</p> : (
-              <div style={{ overflow:'auto', maxHeight:280 }}>
+              <div className="table-scroll" style={{ overflow:'auto', maxHeight:280 }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead><tr>{['Date','Qty','Vendor','Rate/Unit','Inward #','PO #'].map(h=><th key={h} style={{...S.th,position:'sticky',top:0}}>{h}</th>)}</tr></thead>
                   <tbody>{inward.map((r,i)=>(
@@ -182,7 +182,7 @@ export default function ItemDeepDive() {
               <p style={{ fontSize:11, color:'#6b5b7b', margin:'2px 0 0' }}>Raw log, unfiltered · rows flagged ⚠ look like exact duplicates (informational only, doesn't affect the stock total)</p>
             </div>
             {adjustments.length===0 ? <p style={{ padding:16, fontSize:12, color:'#6b5b7b', fontStyle:'italic', margin:0 }}>No adjustment records.</p> : (
-              <div style={{ overflow:'auto', maxHeight:280 }}>
+              <div className="table-scroll" style={{ overflow:'auto', maxHeight:280 }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead><tr>{['','Created','Type','Batch','In','Out','Net'].map(h=><th key={h} style={{...S.th,position:'sticky',top:0}}>{h}</th>)}</tr></thead>
                   <tbody>{adjustments.map((r,i)=>(
@@ -207,7 +207,7 @@ export default function ItemDeepDive() {
               <h3 style={{ fontSize:14, fontWeight:700, color:'#7c3aed', margin:0 }}>Sales ({sales.length})</h3>
             </div>
             {sales.length===0 ? <p style={{ padding:16, fontSize:12, color:'#6b5b7b', fontStyle:'italic', margin:0 }}>Never sold.</p> : (
-              <div style={{ overflow:'auto', maxHeight:280 }}>
+              <div className="table-scroll" style={{ overflow:'auto', maxHeight:280 }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead><tr>{['Date','Qty','Customer','Price/Unit','Salesperson','Bill'].map(h=><th key={h} style={{...S.th,position:'sticky',top:0}}>{h}</th>)}</tr></thead>
                   <tbody>{sales.map((r,i)=>(
@@ -235,7 +235,7 @@ export default function ItemDeepDive() {
               <h3 style={{ fontSize:14, fontWeight:700, color:'#3b0764', margin:0 }}>Purchase Bills ({purchases.length})</h3>
             </div>
             {purchases.length===0 ? <p style={{ padding:16, fontSize:12, color:'#6b5b7b', fontStyle:'italic', margin:0 }}>No purchase records.</p> : (
-              <div style={{ overflow:'auto', maxHeight:280 }}>
+              <div className="table-scroll" style={{ overflow:'auto', maxHeight:280 }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead><tr>{['Date','Vendor','Qty','Rate','Bill No','Inward #'].map(h=><th key={h} style={{...S.th,position:'sticky',top:0}}>{h}</th>)}</tr></thead>
                   <tbody>{purchases.map((r,i)=>(
